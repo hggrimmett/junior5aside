@@ -1,75 +1,104 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Create a Supabase client that reads/writes cookies via the request/response
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          for (const { name, value, options } of cookiesToSet) {
-            request.cookies.set(name, value);
-            response = NextResponse.next({ request });
-            response.cookies.set(name, value, options);
-          }
-        },
-      },
-    }
+  // Read Supabase auth token from cookies
+  // @supabase/ssr stores the session across chunked cookies named sb-<ref>-auth-token.X
+  const ref = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(
+    /^https?:\/\/([^.]+).*$/,
+    "$1"
   );
+  const cookiePrefix = `sb-${ref}-auth-token`;
 
-  // Refresh the session (required by @supabase/ssr to keep tokens alive)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Reassemble chunked cookie value
+  let token = "";
+  const base = request.cookies.get(cookiePrefix)?.value;
+  if (base) {
+    token = base;
+  } else {
+    // Try chunked cookies: sb-<ref>-auth-token.0, .1, .2 ...
+    let i = 0;
+    while (true) {
+      const chunk = request.cookies.get(`${cookiePrefix}.${i}`)?.value;
+      if (!chunk) break;
+      token += chunk;
+      i++;
+    }
+  }
 
-  // Unauthenticated users trying to access protected routes → redirect to /register
-  if (!user && pathname.startsWith("/admin")) {
+  // No token → redirect to register
+  if (!token) {
     const url = request.nextUrl.clone();
     url.pathname = "/register";
     return NextResponse.redirect(url);
   }
 
-  if (!user && pathname.startsWith("/mentor")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/register";
-    return NextResponse.redirect(url);
-  }
+  // For /admin routes, verify the user's role via Supabase REST API
+  if (pathname.startsWith("/admin")) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  // Admin route guard: check role via profiles table
-  if (user && pathname.startsWith("/admin")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single<{ role: string }>();
+      // Parse the token to extract the access_token
+      let accessToken = "";
+      try {
+        const parsed = JSON.parse(token);
+        accessToken = parsed.access_token ?? "";
+      } catch {
+        accessToken = token;
+      }
 
-    if (profile?.role !== "admin") {
+      if (!accessToken) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/register";
+        return NextResponse.redirect(url);
+      }
+
+      // Get user ID from Supabase auth
+      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: anonKey,
+        },
+      });
+
+      if (!userRes.ok) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/register";
+        return NextResponse.redirect(url);
+      }
+
+      const user = await userRes.json();
+
+      // Check profile role
+      const profileRes = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?select=role&id=eq.${user.id}&limit=1`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: anonKey,
+          },
+        }
+      );
+
+      const profiles = await profileRes.json();
+
+      if (!Array.isArray(profiles) || profiles[0]?.role !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/register";
+        return NextResponse.redirect(url);
+      }
+    } catch {
       const url = request.nextUrl.clone();
       url.pathname = "/register";
       return NextResponse.redirect(url);
     }
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Only run middleware on protected routes:
-     * - /admin/*
-     * - /mentor/*
-     */
-    "/admin/:path*",
-    "/mentor/:path*",
-  ],
+  matcher: ["/admin/:path*", "/mentor/:path*"],
 };
