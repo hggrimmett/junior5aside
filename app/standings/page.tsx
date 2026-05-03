@@ -316,11 +316,10 @@ export default function StandingsPage() {
                     </svg>
                   </div>
                   <p className="text-sm font-medium text-foreground">
-                    No completed matches yet for{" "}
-                    {TABS.find((tab) => tab.key === t.key)?.label ?? t.key}.
+                    Sit tight!
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Results will appear here once matches are finalised.
+                    Scores and standings will appear here once the tournament is underway.
                   </p>
                 </CardContent>
               </Card>
