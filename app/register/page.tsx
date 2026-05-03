@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { AvatarUpload } from "@/components/ui/avatar-upload";
+import { uploadPlayerPhoto } from "@/lib/upload-photo";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -154,6 +156,10 @@ export default function RegisterPage() {
   const [done, setDone] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Photo upload sub-step state (Step 3)
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [playerIds, setPlayerIds] = useState<{ id: string; name: string }[]>([]);
+
   // Step 1 form
   const {
     register: regAuth,
@@ -186,6 +192,8 @@ export default function RegisterPage() {
     setParentUid(null);
     setDone(false);
     setServerError(null);
+    setShowPhotos(false);
+    setPlayerIds([]);
     resetAuth();
     resetChildren({ children: [{ name: "", schoolYear: "Y3" }] });
   }
@@ -255,14 +263,19 @@ export default function RegisterPage() {
       age_group: c.schoolYear,
     }));
 
-    const { error: insertErr } = await supabase.from("players").insert(rows);
+    const { data: inserted, error: insertErr } = await supabase
+      .from("players")
+      .insert(rows)
+      .select("id, name");
 
     if (insertErr) {
       setServerError(insertErr.message);
       return;
     }
 
-    setDone(true);
+    // Transition to photo upload step
+    setPlayerIds(inserted ?? []);
+    setShowPhotos(true);
   }
 
   // ── Success ──────────────────────────────────────────────
@@ -368,9 +381,15 @@ export default function RegisterPage() {
               step === 2 ? "bg-cricket" : "bg-border"
             }`}
           />
-          <StepDot active={step === 2} done={false} label="2" />
+          <StepDot active={step === 2 && !showPhotos} done={step === 2 && showPhotos} label="2" />
+          <div
+            className={`h-px flex-1 transition-colors ${
+              showPhotos ? "bg-cricket" : "bg-border"
+            }`}
+          />
+          <StepDot active={showPhotos} done={false} label="3" />
           <span className="ml-2 text-xs text-muted-foreground">
-            {step === 1 ? "Your details" : "Add children"}
+            {step === 1 ? "Your details" : showPhotos ? "Photos" : "Add children"}
           </span>
         </div>
       )}
@@ -482,8 +501,59 @@ export default function RegisterPage() {
         </form>
       )}
 
+      {/* ── Step 3: Photo Upload (parent only) ─────────── */}
+      {step === 2 && role === "parent" && showPhotos && (
+        <div className="space-y-5">
+          <div>
+            <h3 className="text-base font-bold text-foreground">
+              Add Player Photos
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Tap a circle to upload a photo. You can skip this and add photos later.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {playerIds.map((player) => (
+              <div
+                key={player.id}
+                className="flex items-center gap-4 rounded-xl border border-border bg-muted/40 px-4 py-3"
+              >
+                <AvatarUpload
+                  size={72}
+                  onUpload={(file) =>
+                    uploadPlayerPhoto(supabase, parentUid!, player.id, file)
+                  }
+                />
+                <span className="text-sm font-semibold text-foreground">
+                  {player.name}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 flex-1 text-sm font-semibold"
+              onClick={() => setDone(true)}
+            >
+              Skip
+            </Button>
+            <Button
+              type="button"
+              className="h-11 flex-1 text-sm font-bold"
+              onClick={() => setDone(true)}
+            >
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── Step 2: Add Children (parent only) ─────────── */}
-      {step === 2 && role === "parent" && (
+      {step === 2 && role === "parent" && !showPhotos && (
         <form
           onSubmit={handleChildren(onChildrenSubmit)}
           className="space-y-5"
@@ -583,7 +653,7 @@ export default function RegisterPage() {
                 <Spinner /> Please Wait
               </span>
             ) : (
-              "Complete Registration"
+              "Save & Continue"
             )}
           </Button>
         </form>

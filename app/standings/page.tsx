@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { getLeagueTable, TeamStanding } from "@/lib/tournament-logic";
+import { getLeagueTable, getLeadingRunScorer, getTopWicketTaker, TeamStanding, TeamMatchStats } from "@/lib/tournament-logic";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +101,16 @@ export default function StandingsPage() {
     Blue:  [],
   });
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
+  const [topScorers, setTopScorers] = useState<Record<TournamentColour, TeamMatchStats | null>>({
+    Green: null,
+    Red:   null,
+    Blue:  null,
+  });
+  const [topWicketTakers, setTopWicketTakers] = useState<Record<TournamentColour, TeamMatchStats | null>>({
+    Green: null,
+    Red:   null,
+    Blue:  null,
+  });
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -136,13 +146,22 @@ export default function StandingsPage() {
   const refreshAll = useCallback(async () => {
     setLoading(true);
     const next: Record<TournamentColour, TeamStanding[]> = { Green: [], Red: [], Blue: [] };
+    const nextScorers: Record<TournamentColour, TeamMatchStats | null> = { Green: null, Red: null, Blue: null };
+    const nextWicketTakers: Record<TournamentColour, TeamMatchStats | null> = { Green: null, Red: null, Blue: null };
 
     await Promise.all(
       (["Green", "Red", "Blue"] as TournamentColour[]).map(async (group) => {
         const t = tournaments[group];
         if (!t) return;
         try {
-          next[group] = await getLeagueTable(supabase, t.id);
+          const [table, scorer, wicketTaker] = await Promise.all([
+            getLeagueTable(supabase, t.id),
+            getLeadingRunScorer(supabase, t.id),
+            getTopWicketTaker(supabase, t.id),
+          ]);
+          next[group] = table;
+          nextScorers[group] = scorer;
+          nextWicketTakers[group] = wicketTaker;
         } catch {
           // leave empty on error
         }
@@ -150,6 +169,8 @@ export default function StandingsPage() {
     );
 
     setStandings(next);
+    setTopScorers(nextScorers);
+    setTopWicketTakers(nextWicketTakers);
     setLastUpdated(new Date());
     setLoading(false);
   }, [supabase, tournaments]);
@@ -386,6 +407,87 @@ export default function StandingsPage() {
                         </div>
                       </CardContent>
                     </Card>
+                  )}
+
+                  {/* ── Leading Run Scorer / Top Wicket Taker ── */}
+                  {(topScorers[t.key] || topWicketTakers[t.key]) && (
+                    <div className="mb-5 grid grid-cols-2 gap-3">
+
+                      {/* Leading Run Scorer */}
+                      {topScorers[t.key] && (
+                        <Card className="overflow-hidden border border-border/60">
+                          <CardHeader className="px-4 py-3 pb-2">
+                            <div className="flex items-center gap-2">
+                              {/* Bat icon */}
+                              <svg
+                                className="h-4 w-4 shrink-0 text-amber-500"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M4 20L18 6" />
+                                <path d="M14 4l6 6" />
+                                <path d="M18 6l-4-4" />
+                                <circle cx="4.5" cy="19.5" r="1.5" fill="currentColor" stroke="none" />
+                              </svg>
+                              <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                Leading Run Scorer
+                              </CardTitle>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-4 pt-0">
+                            <p className="truncate text-sm font-bold text-foreground">
+                              {teamNames[topScorers[t.key]!.teamId] ?? topScorers[t.key]!.teamId}
+                            </p>
+                            <p className="mt-1 text-xl font-black tabular-nums text-foreground">
+                              {topScorers[t.key]!.totalRuns}
+                              <span className="ml-1 text-xs font-medium text-muted-foreground">runs</span>
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Top Wicket Taker */}
+                      {topWicketTakers[t.key] && (
+                        <Card className="overflow-hidden border border-border/60">
+                          <CardHeader className="px-4 py-3 pb-2">
+                            <div className="flex items-center gap-2">
+                              {/* Ball icon */}
+                              <svg
+                                className="h-4 w-4 shrink-0 text-red-500"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <circle cx="12" cy="12" r="9" />
+                                <path d="M12 3a9 9 0 0 1 0 18" />
+                                <path d="M3.6 9h16.8" />
+                                <path d="M3.6 15h16.8" />
+                              </svg>
+                              <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                Top Wicket Taker
+                              </CardTitle>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-4 pt-0">
+                            <p className="truncate text-sm font-bold text-foreground">
+                              {teamNames[topWicketTakers[t.key]!.teamId] ?? topWicketTakers[t.key]!.teamId}
+                            </p>
+                            <p className="mt-1 text-xl font-black tabular-nums text-foreground">
+                              {topWicketTakers[t.key]!.totalWicketsTaken}
+                              <span className="ml-1 text-xs font-medium text-muted-foreground">wickets</span>
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                    </div>
                   )}
 
                   {/* ── League table card ────────────── */}

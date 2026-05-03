@@ -32,6 +32,7 @@ interface Player {
   age_group: SchoolYear;
   team_id: string | null;
   parent_id: string;
+  avatar_url: string | null;
 }
 
 interface Team {
@@ -87,6 +88,25 @@ const SCHOOL_YEAR_COLORS: Record<
 
 // ── Draggable Player Card ──────────────────────────────────
 
+function PlayerAvatar({ player, colors }: { player: Player; colors: typeof SCHOOL_YEAR_COLORS[SchoolYear] }) {
+  if (player.avatar_url) {
+    return (
+      <img
+        src={player.avatar_url}
+        alt={player.name}
+        className="h-8 w-8 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <span
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${colors.bg} ${colors.text} ring-1 ${colors.ring}`}
+    >
+      {player.name.charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
 function PlayerCard({ player, overlay }: { player: Player; overlay?: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: player.id,
@@ -99,13 +119,18 @@ function PlayerCard({ player, overlay }: { player: Player; overlay?: boolean }) 
     return (
       <Card className={`shadow-lg ring-2 ${colors.ring} ${colors.bg}`}>
         <CardContent className="px-3 py-2">
-          <p className="text-sm font-medium">{player.name}</p>
-          <Badge
-            variant="outline"
-            className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
-          >
-            {player.age_group}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <PlayerAvatar player={player} colors={colors} />
+            <div>
+              <p className="text-sm font-medium">{player.name}</p>
+              <Badge
+                variant="outline"
+                className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
+              >
+                {player.age_group}
+              </Badge>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
@@ -121,13 +146,18 @@ function PlayerCard({ player, overlay }: { player: Player; overlay?: boolean }) 
       }`}
     >
       <CardContent className="px-3 py-2">
-        <p className="text-sm font-medium">{player.name}</p>
-        <Badge
-          variant="outline"
-          className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
-        >
-          {player.age_group}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <PlayerAvatar player={player} colors={colors} />
+          <div>
+            <p className="text-sm font-medium">{player.name}</p>
+            <Badge
+              variant="outline"
+              className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
+            >
+              {player.age_group}
+            </Badge>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
