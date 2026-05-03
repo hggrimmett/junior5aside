@@ -71,7 +71,7 @@ export default function RegisterPage() {
     handleSubmit: handleAuth,
     formState: { errors: authErrors, isSubmitting: authSubmitting },
     reset: resetAuth,
-  } = useForm<AuthFields>();
+  } = useForm<AuthFields>({ mode: "onSubmit" });
 
   // Step 2 form (parent children)
   const {
@@ -106,10 +106,21 @@ export default function RegisterPage() {
   async function onAuthSubmit(data: AuthFields) {
     setServerError(null);
 
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-    });
+    let authData;
+    let authErr;
+    try {
+      const result = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+      });
+      authData = result.data;
+      authErr = result.error;
+    } catch (e) {
+      setServerError(
+        e instanceof Error ? e.message : "Failed to connect to auth service. Check environment variables."
+      );
+      return;
+    }
 
     if (authErr) {
       setServerError(authErr.message);
