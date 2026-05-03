@@ -6,15 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function HomePage() {
   return (
     <div className="px-4 py-5 space-y-4">
-      {/* Event banner */}
-      <div className="rounded-2xl bg-cricket px-5 py-5 text-white shadow-md">
-        <p className="text-xs font-bold uppercase tracking-widest text-white/50">
-          Welcome to
-        </p>
-        <h2 className="mt-1 text-xl font-extrabold tracking-tight">
-          Junior 5-a-Side Cricket
-        </h2>
-      </div>
+      <h2 className="text-xl font-extrabold tracking-tight text-foreground">
+        Home
+      </h2>
 
       <div className="flex flex-col gap-3">
         {/* Competition Dashboard */}
