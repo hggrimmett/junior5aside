@@ -81,6 +81,11 @@ export default function TournamentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  // ── Export/import state ──────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
   // ── Expanded balancer state ───────────────────────────────
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -242,6 +247,181 @@ export default function TournamentsPage() {
     showToast("Tournament created.");
   }
 
+  // ── Export entrants ──────────────────────────────────────
+
+  async function handleExport() {
+    setExporting(true);
+    setError(null);
+
+    const { data: players, error: fetchErr } = await supabase
+      .from("players")
+      .select("name, age_group")
+      .order("age_group")
+      .order("name");
+
+    if (fetchErr) {
+      setError(fetchErr.message);
+      setExporting(false);
+      return;
+    }
+
+    const lines = ["Name,School Year,Competition,Team Name"];
+    for (const p of players ?? []) {
+      lines.push(`${csvEscape(p.name)},${p.age_group},,`);
+    }
+
+    const csv = lines.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `entrants-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setExporting(false);
+    showToast("Entrants exported.");
+  }
+
+  // ── Import teams ───────────────────────────────────────
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setError(null);
+    setImportResult(null);
+
+    const text = await file.text();
+    const rows = text.split("\n").map((r) => r.split(",").map((c) => c.trim().replace(/^"|"$/g, "")));
+
+    const header = rows[0]?.map((h) => h.toLowerCase()) ?? [];
+    const nameIdx = header.indexOf("name");
+    const compIdx = header.indexOf("competition");
+    const teamIdx = header.indexOf("team name");
+
+    if (nameIdx === -1 || compIdx === -1 || teamIdx === -1) {
+      setError("CSV must have 'Name', 'Competition', and 'Team Name' columns.");
+      setImporting(false);
+      return;
+    }
+
+    // Fetch all players to match by name
+    const { data: allPlayers } = await supabase
+      .from("players")
+      .select("id, name");
+
+    const playerLookup: Record<string, string> = {};
+    for (const p of allPlayers ?? []) {
+      playerLookup[p.name.toLowerCase().trim()] = p.id;
+    }
+
+    // Fetch existing tournaments
+    const { data: existingTournaments } = await supabase
+      .from("tournaments")
+      .select("id, name, colour");
+
+    const tournamentByColour: Record<string, string> = {};
+    for (const t of existingTournaments ?? []) {
+      tournamentByColour[t.colour.toLowerCase()] = t.id;
+      tournamentByColour[t.name.toLowerCase()] = t.id;
+    }
+
+    // Collect team assignments
+    const teamPlayers = new Map<string, { colour: string; playerIds: string[] }>();
+    let skipped = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const name = row[nameIdx]?.trim();
+      const comp = row[compIdx]?.trim();
+      const teamName = row[teamIdx]?.trim();
+
+      if (!name || !comp || !teamName) { skipped++; continue; }
+
+      const playerId = playerLookup[name.toLowerCase()];
+      if (!playerId) { skipped++; continue; }
+
+      const key = `${teamName}|||${comp}`;
+      if (!teamPlayers.has(key)) {
+        teamPlayers.set(key, { colour: comp, playerIds: [] });
+      }
+      teamPlayers.get(key)!.playerIds.push(playerId);
+    }
+
+    let tournamentsCreated = 0;
+    let teamsCreated = 0;
+    let playersAssigned = 0;
+
+    for (const [key, { colour, playerIds }] of teamPlayers) {
+      const teamName = key.split("|||")[0];
+
+      // Find or create tournament
+      let tournamentId = tournamentByColour[colour.toLowerCase()];
+      if (!tournamentId) {
+        const validColour = ["Green", "Red", "Blue"].find(
+          (c) => c.toLowerCase() === colour.toLowerCase()
+        );
+        if (!validColour) continue;
+
+        const { data: newT } = await supabase
+          .from("tournaments")
+          .insert({ name: `${validColour} Tournament`, colour: validColour, max_team_size: 4 })
+          .select("id")
+          .single();
+
+        if (!newT) continue;
+        tournamentId = newT.id;
+        tournamentByColour[colour.toLowerCase()] = tournamentId;
+        tournamentsCreated++;
+      }
+
+      // Find or create team
+      let teamId: string;
+      const { data: existing } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("name", teamName)
+        .eq("tournament_id", tournamentId)
+        .limit(1)
+        .single();
+
+      if (existing) {
+        teamId = existing.id;
+      } else {
+        const { data: newTeam } = await supabase
+          .from("teams")
+          .insert({ name: teamName, tournament_id: tournamentId })
+          .select("id")
+          .single();
+
+        if (!newTeam) continue;
+        teamId = newTeam.id;
+        teamsCreated++;
+      }
+
+      // Assign players
+      for (const pid of playerIds) {
+        const { error: updateErr } = await supabase
+          .from("players")
+          .update({ team_id: teamId })
+          .eq("id", pid);
+
+        if (!updateErr) playersAssigned++;
+      }
+    }
+
+    setImportResult(
+      `${tournamentsCreated} tournaments, ${teamsCreated} teams created. ${playersAssigned} players assigned.${skipped > 0 ? ` ${skipped} rows skipped.` : ""}`
+    );
+    setImporting(false);
+    fetchTournaments();
+    e.target.value = "";
+  }
+
   // ── Toast helper ──────────────────────────────────────────
 
   function showToast(msg: string) {
@@ -281,6 +461,62 @@ export default function TournamentsPage() {
             + Create
           </Button>
         </div>
+
+        {/* ── Step 1: Export / Step 2: Import ────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-black">Team Allocation</CardTitle>
+            <CardDescription className="text-sm">
+              Step 1: Download entrants. Step 2: Fill in Competition &amp; Team Name columns. Step 3: Upload.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Export */}
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cricket text-sm font-bold text-cricket-foreground shadow-md transition-opacity active:opacity-80 disabled:opacity-60"
+            >
+              {exporting ? (
+                <><Spinner /> Exporting...</>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" />
+                  </svg>
+                  Download Entrants
+                </>
+              )}
+            </button>
+
+            {/* Import */}
+            <label className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/40 text-sm font-bold text-muted-foreground transition-colors active:bg-muted">
+              {importing ? (
+                <><Spinner /> Importing...</>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                  Upload Completed Sheet
+                </>
+              )}
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleImport}
+                disabled={importing}
+                className="hidden"
+              />
+            </label>
+
+            {importResult && (
+              <div className="rounded-xl bg-cricket/5 border border-cricket/20 px-4 py-3 text-sm font-semibold text-cricket">
+                {importResult}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Global error banner */}
         {error && (
@@ -519,4 +755,11 @@ export default function TournamentsPage() {
       )}
     </div>
   );
+}
+
+function csvEscape(value: string): string {
+  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
 }
