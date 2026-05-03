@@ -3,27 +3,164 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+interface Profile {
+  id: string;
+  role: string;
+  full_name: string;
+  mobile_number: string;
+}
+
+interface Team {
+  id: string;
+  name: string;
+}
 
 export default function HomePage() {
   const supabase = getSupabaseBrowserClient();
-  const [role, setRole] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [mentorTeam, setMentorTeam] = useState<Team | null | "loading">("loading");
+  const [loading, setLoading] = useState(true);
+
+  // Mentor profile edit
+  const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    async function loadRole() {
+    async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
       const { data } = await supabase
         .from("profiles")
-        .select("role")
+        .select("id, role, full_name, mobile_number")
         .eq("id", user.id)
-        .single<{ role: string }>();
-      setRole(data?.role ?? null);
+        .single<Profile>();
+
+      if (data) {
+        setProfile(data);
+        setFullName(data.full_name);
+        setMobile(data.mobile_number);
+
+        // If mentor, fetch their team
+        if (data.role === "mentor") {
+          const { data: team } = await supabase
+            .from("teams")
+            .select("id, name")
+            .eq("mentor_id", user.id)
+            .limit(1)
+            .single<Team>();
+          setMentorTeam(team ?? null);
+        }
+      }
+      setLoading(false);
     }
-    loadRole();
+    load();
   }, [supabase]);
 
+  async function handleSaveMentorProfile() {
+    if (!profile || !fullName.trim() || !mobile.trim()) return;
+    setSaving(true); setSaved(false);
+    await supabase.from("profiles").update({
+      full_name: fullName.trim(),
+      mobile_number: mobile.trim(),
+    }).eq("id", profile.id);
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  const role = profile?.role;
   const isAdmin = role === "superadmin" || role === "coach";
+  const isMentor = role === "mentor";
+
+  if (loading) {
+    return (
+      <div className="flex h-60 items-center justify-center">
+        <svg className="h-6 w-6 animate-spin text-muted-foreground" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    );
+  }
+
+  // ── Mentor view ──────────────────────────────────────────
+
+  if (isMentor) {
+    return (
+      <div className="px-4 py-5 space-y-5">
+        <h2 className="text-xl font-extrabold tracking-tight text-foreground">
+          Home
+        </h2>
+
+        {/* My Team */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-black">My Team</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {mentorTeam === "loading" ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : mentorTeam ? (
+              <div className="flex items-center justify-between">
+                <p className="text-lg font-extrabold text-foreground">{mentorTeam.name}</p>
+                <Link
+                  href="/mentor/dashboard"
+                  className="text-sm font-bold text-cricket hover:underline"
+                >
+                  View →
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Not assigned to a team yet. Check back soon.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* My Details */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-black">My Details</CardTitle>
+              <Badge className="bg-cricket text-white text-xs font-semibold">Mentor</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Full Name</Label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mobile</Label>
+              <Input type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} className="h-12" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</Label>
+              <p className="text-sm text-muted-foreground">Managed via login — contact an organiser to change.</p>
+            </div>
+            <button
+              onClick={handleSaveMentorProfile}
+              disabled={saving}
+              className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity active:opacity-80 disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Update Details"}
+            </button>
+            {saved && <p className="text-center text-sm font-medium text-cricket">Saved!</p>}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Parent / Admin view ──────────────────────────────────
 
   return (
     <div className="px-4 py-5 space-y-4">
