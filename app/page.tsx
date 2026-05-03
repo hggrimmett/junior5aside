@@ -199,6 +199,27 @@ export default function HomePage() {
               </Link>
             </CardContent>
           </Card>
+          {/* Sign In */}
+          <Card className="bg-card shadow-sm transition-shadow hover:shadow-md">
+            <CardHeader className="flex flex-row items-center gap-4 pb-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cricket/10 text-cricket">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-base font-bold">Sign In</CardTitle>
+                <CardDescription className="text-sm">
+                  Already registered? Sign in to your account.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Link href="/login" className="inline-flex h-11 w-full items-center justify-center rounded-md border border-input bg-background px-8 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+                Sign In
+              </Link>
+            </CardContent>
+          </Card>
         </div>
       </main>
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
+import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   Card,
@@ -658,6 +659,13 @@ export default function RegisterPage() {
           </Button>
         </form>
       )}
+      <Separator className="my-5" />
+      <p className="text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link href="/login" className="font-semibold text-primary hover:underline">
+          Sign In
+        </Link>
+      </p>
     </Shell>
   );
 }
