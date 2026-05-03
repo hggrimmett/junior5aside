@@ -55,6 +55,7 @@ const COLOURS: TournamentColour[] = ["Green", "Red", "Blue"];
 export default function AdminSettingsPage() {
   const supabase = getSupabaseBrowserClient();
 
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [counts, setCounts] = useState<Counts>({ players: 0, parents: 0, matches: 0 });
   const [loading, setLoading] = useState(true);
   const [purging, setPurging] = useState(false);
@@ -62,6 +63,30 @@ export default function AdminSettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Auth guard ──────────────────────────────────────────
+
+  useEffect(() => {
+    async function checkRole() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single<{ role: string }>();
+
+      if (profile?.role === "superadmin" || profile?.role === "coach") {
+        setAuthorized(true);
+      } else {
+        window.location.href = "/dashboard";
+      }
+    }
+    checkRole();
+  }, [supabase]);
 
   // ── Fetch counts ─────────────────────────────────────────
 
@@ -266,6 +291,17 @@ export default function AdminSettingsPage() {
   }
 
   // ── Render ───────────────────────────────────────────────
+
+  if (!authorized) {
+    return (
+      <div className="flex h-60 items-center justify-center">
+        <svg className="h-6 w-6 animate-spin text-muted-foreground" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
