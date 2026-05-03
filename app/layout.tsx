@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
+import TopBar from "@/components/nav/TopBar";
 import BottomNav from "@/components/nav/BottomNav";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -20,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
       <body>
+        <TopBar />
         <main className="pb-20 md:pb-0">{children}</main>
         <BottomNav />
       </body>
