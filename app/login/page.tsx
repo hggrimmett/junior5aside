@@ -55,10 +55,10 @@ export default function LoginPage() {
       } else if (profile?.role === "mentor") {
         router.push("/mentor/dashboard");
       } else {
-        router.push("/profile");
+        router.push("/dashboard");
       }
     } else {
-      router.push("/profile");
+      router.push("/dashboard");
     }
   }
 

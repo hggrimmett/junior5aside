@@ -296,6 +296,15 @@ export default function RegisterPage() {
               ? "Your account and players have been registered."
               : "Your mentor account has been created."}
           </p>
+
+          <div className="mt-6 flex flex-col gap-3 w-full max-w-xs">
+            <Link href="/dashboard" className="inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+              Go to Competitions
+            </Link>
+            <Link href="/profile" className="inline-flex h-11 w-full items-center justify-center rounded-md border border-input bg-background px-8 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+              My Profile
+            </Link>
+          </div>
         </div>
       </Shell>
     );
@@ -348,30 +357,10 @@ export default function RegisterPage() {
         </div>
       )}
 
-      {/* Role toggle */}
-      <div className="mb-8">
-        <div className="flex gap-2 rounded-xl bg-muted p-1">
-          {(["parent", "mentor"] as const).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => switchRole(r)}
-              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                role === r
-                  ? "bg-card text-cricket shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {r === "parent" ? "Register as Parent" : "Register as Mentor"}
-              {role === r && (
-                <Badge variant="default" className="ml-2 text-[10px]">
-                  Selected
-                </Badge>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Title */}
+      <h2 className="mb-6 text-lg font-bold text-foreground">
+        {role === "parent" ? "Parent Registration" : "Mentor Registration"}
+      </h2>
 
       {/* Step indicator (parent only) */}
       {role === "parent" && (
@@ -660,12 +649,37 @@ export default function RegisterPage() {
         </form>
       )}
       <Separator className="my-5" />
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-primary hover:underline">
-          Sign In
-        </Link>
-      </p>
+      <div className="space-y-2 text-center text-sm text-muted-foreground">
+        <p>
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold text-primary hover:underline">
+            Sign In
+          </Link>
+        </p>
+        {role === "parent" ? (
+          <p>
+            Registering as a mentor?{" "}
+            <button
+              type="button"
+              onClick={() => switchRole("mentor")}
+              className="font-semibold text-primary hover:underline"
+            >
+              Mentor signup
+            </button>
+          </p>
+        ) : (
+          <p>
+            Registering your children?{" "}
+            <button
+              type="button"
+              onClick={() => switchRole("parent")}
+              className="font-semibold text-primary hover:underline"
+            >
+              Parent signup
+            </button>
+          </p>
+        )}
+      </div>
     </Shell>
   );
 }
