@@ -41,25 +41,8 @@ export default function LoginPage() {
       return;
     }
 
-    // Fetch role to redirect appropriately
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single<{ role: string }>();
-
-      if (profile?.role === "superadmin" || profile?.role === "coach") {
-        router.push("/admin/settings");
-      } else if (profile?.role === "mentor") {
-        router.push("/mentor/dashboard");
-      } else {
-        router.push("/dashboard");
-      }
-    } else {
-      router.push("/dashboard");
-    }
+    // Hard redirect so auth cookies are picked up on the next page load
+    window.location.href = "/dashboard";
   }
 
   return (
