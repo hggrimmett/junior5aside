@@ -1,4 +1,11 @@
 {
+  "name": "junior-5-a-side",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@supabase/ssr": "^0.10.2",
@@ -6,8 +13,7 @@
     "next": "^16.2.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-hook-form": "^7.75.0",
-    "vercel": "^53.1.0"
+    "react-hook-form": "^7.75.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
