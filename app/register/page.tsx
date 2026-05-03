@@ -57,6 +57,11 @@ function Spinner() {
 // ── Page ───────────────────────────────────────────────────
 
 export default function RegisterPage() {
+  // Temporary debug — remove after confirming env vars work
+  const debugUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "NOT SET";
+  const debugKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "NOT SET";
+  console.log("ENV CHECK:", { url: debugUrl, keyPrefix: debugKey.slice(0, 10) });
+
   const supabase = getSupabaseBrowserClient();
 
   const [role, setRole] = useState<Role>("parent");
