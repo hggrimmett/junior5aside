@@ -51,6 +51,14 @@ export default function MyPlayersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Edit player dialog state
+  const [editPlayer, setEditPlayer] = useState<Player | null>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editYear, setEditYear] = useState<SchoolYear>("Y3");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       const {
@@ -126,6 +134,66 @@ export default function MyPlayersPage() {
     setNewPlayerId(null);
   }
 
+  // ── Edit player ──────────────────────────────────────────
+
+  function openEdit(player: Player) {
+    setEditPlayer(player);
+    setEditFirstName(player.first_name);
+    setEditLastName(player.last_name);
+    setEditYear(player.age_group);
+    setEditError(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editPlayer) return;
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      setEditError("First and last name are required.");
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError(null);
+
+    const { error: updateErr } = await supabase
+      .from("players")
+      .update({
+        first_name: editFirstName.trim(),
+        last_name: editLastName.trim(),
+        name: `${editFirstName.trim()} ${editLastName.trim()}`,
+        age_group: editYear,
+      })
+      .eq("id", editPlayer.id);
+
+    if (updateErr) {
+      setEditError(updateErr.message);
+      setEditSaving(false);
+      return;
+    }
+
+    setPlayers((prev) =>
+      prev.map((p) =>
+        p.id === editPlayer.id
+          ? { ...p, first_name: editFirstName.trim(), last_name: editLastName.trim(), name: `${editFirstName.trim()} ${editLastName.trim()}`, age_group: editYear }
+          : p
+      )
+    );
+
+    setEditSaving(false);
+    setEditPlayer(null);
+  }
+
+  async function handleEditPhoto(file: File): Promise<string | null> {
+    if (!editPlayer || !userId) return null;
+    const url = await uploadPlayerPhoto(supabase, userId, editPlayer.id, file);
+    if (url) {
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === editPlayer.id ? { ...p, avatar_url: url } : p))
+      );
+      setEditPlayer((prev) => (prev ? { ...prev, avatar_url: url } : null));
+    }
+    return url;
+  }
+
   if (loading) {
     return (
       <div className="flex h-60 items-center justify-center">
@@ -165,7 +233,8 @@ export default function MyPlayersPage() {
           {players.map((player) => (
             <Card
               key={player.id}
-              className="rounded-2xl shadow-md overflow-hidden"
+              className="rounded-2xl shadow-md overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+              onClick={() => openEdit(player)}
             >
               <CardContent className="flex items-center gap-4 px-5 py-4">
                 {player.avatar_url ? (
@@ -191,6 +260,10 @@ export default function MyPlayersPage() {
                     {player.age_group}
                   </Badge>
                 </div>
+
+                <svg className="h-4 w-4 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
               </CardContent>
             </Card>
           ))}
@@ -298,6 +371,88 @@ export default function MyPlayersPage() {
                 className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity active:opacity-80 disabled:opacity-60"
               >
                 {saving ? "Saving..." : "Save & Add Photo"}
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Player Dialog ────────────────────────── */}
+      <Dialog open={!!editPlayer} onOpenChange={(open) => { if (!open) setEditPlayer(null); }}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-extrabold tracking-tight">
+              Edit Player
+            </DialogTitle>
+          </DialogHeader>
+
+          {editError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {editError}
+            </div>
+          )}
+
+          {editPlayer && (
+            <div className="space-y-5">
+              {/* Avatar */}
+              <div className="flex flex-col items-center gap-2">
+                <AvatarUpload
+                  size={96}
+                  currentUrl={editPlayer.avatar_url}
+                  onUpload={handleEditPhoto}
+                />
+                <p className="text-xs text-muted-foreground">Tap to change photo</p>
+              </div>
+
+              {/* Name fields */}
+              <div className="flex gap-2">
+                <div className="flex-1 space-y-1.5">
+                  <Label htmlFor="edit-first-name">First Name</Label>
+                  <Input
+                    id="edit-first-name"
+                    type="text"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Label htmlFor="edit-last-name">Last Name</Label>
+                  <Input
+                    id="edit-last-name"
+                    type="text"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+              </div>
+
+              {/* School Year */}
+              <div className="space-y-1.5">
+                <Label>School Year</Label>
+                <Select
+                  value={editYear}
+                  onValueChange={(v) => setEditYear((v ?? "Y3") as SchoolYear)}
+                >
+                  <SelectTrigger className="h-12">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCHOOL_YEARS.map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Save */}
+              <button
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity active:opacity-80 disabled:opacity-60"
+              >
+                {editSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           )}
