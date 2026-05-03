@@ -28,6 +28,8 @@ const SCHOOL_YEARS: SchoolYear[] = ["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"];
 
 interface Player {
   id: string;
+  first_name: string;
+  last_name: string;
   name: string;
   age_group: SchoolYear;
   avatar_url: string | null;
@@ -42,7 +44,8 @@ export default function MyPlayersPage() {
 
   // Add player dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
   const [newYear, setNewYear] = useState<SchoolYear>("Y3");
   const [newPlayerId, setNewPlayerId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,7 +66,7 @@ export default function MyPlayersPage() {
 
       const { data } = await supabase
         .from("players")
-        .select("id, name, age_group, avatar_url")
+        .select("id, first_name, last_name, name, age_group, avatar_url")
         .eq("parent_id", user.id)
         .returns<Player[]>();
 
@@ -75,7 +78,8 @@ export default function MyPlayersPage() {
   }, [supabase, router]);
 
   function openDialog() {
-    setNewName("");
+    setNewFirstName("");
+    setNewLastName("");
     setNewYear("Y3");
     setNewPlayerId(null);
     setError(null);
@@ -83,8 +87,8 @@ export default function MyPlayersPage() {
   }
 
   async function handleSavePlayer() {
-    if (!newName.trim()) {
-      setError("Player name is required.");
+    if (!newFirstName.trim() || !newLastName.trim()) {
+      setError("First and last name are required.");
       return;
     }
 
@@ -95,10 +99,12 @@ export default function MyPlayersPage() {
       .from("players")
       .insert({
         parent_id: userId,
-        name: newName.trim(),
+        first_name: newFirstName.trim(),
+        last_name: newLastName.trim(),
+        name: `${newFirstName.trim()} ${newLastName.trim()}`,
         age_group: newYear,
       })
-      .select("id, name, age_group, avatar_url")
+      .select("id, first_name, last_name, name, age_group, avatar_url")
       .single<Player>();
 
     if (insertErr) {
@@ -165,18 +171,18 @@ export default function MyPlayersPage() {
                 {player.avatar_url ? (
                   <img
                     src={player.avatar_url}
-                    alt={player.name}
+                    alt={`${player.first_name} ${player.last_name}`}
                     className="h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-border"
                   />
                 ) : (
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-cricket text-cricket-foreground text-lg font-black ring-2 ring-border">
-                    {player.name.charAt(0).toUpperCase()}
+                    {player.first_name?.charAt(0).toUpperCase()}
                   </div>
                 )}
 
                 <div className="flex-1 min-w-0">
                   <p className="text-base font-extrabold tracking-tight text-foreground truncate">
-                    {player.name}
+                    {player.first_name} {player.last_name}
                   </p>
                   <Badge
                     variant="secondary"
@@ -242,16 +248,29 @@ export default function MyPlayersPage() {
           ) : (
             /* ── Name + Year step ────────────────────── */
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="player-name">Player Name</Label>
-                <Input
-                  id="player-name"
-                  type="text"
-                  placeholder="Child's name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="h-12"
-                />
+              <div className="flex gap-2">
+                <div className="flex-1 space-y-1.5">
+                  <Label htmlFor="player-first-name">First Name</Label>
+                  <Input
+                    id="player-first-name"
+                    type="text"
+                    placeholder="First name"
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Label htmlFor="player-last-name">Last Name</Label>
+                  <Input
+                    id="player-last-name"
+                    type="text"
+                    placeholder="Last name"
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">

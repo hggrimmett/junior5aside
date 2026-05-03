@@ -27,6 +27,8 @@ type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
 
 interface Child {
   id: string;
+  first_name: string;
+  last_name: string;
   name: string;
   age_group: SchoolYear;
 }
@@ -82,7 +84,7 @@ export default function ProfilePage() {
       if (profileData.role === "parent") {
         const { data: kids } = await supabase
           .from("players")
-          .select("id, name, age_group")
+          .select("id, first_name, last_name, name, age_group")
           .eq("parent_id", user.id)
           .returns<Child[]>();
 
@@ -242,7 +244,7 @@ export default function ProfilePage() {
                 <Card key={child.id} className="rounded-2xl shadow-md">
                   <CardContent className="flex items-center justify-between px-5 py-4">
                     <span className="text-base font-semibold text-foreground">
-                      {child.name}
+                      {child.first_name} {child.last_name}
                     </span>
                     <Badge
                       variant="secondary"

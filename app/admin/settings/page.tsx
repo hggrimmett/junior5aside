@@ -18,6 +18,8 @@ import { Separator } from "@/components/ui/separator";
 
 interface PlayerExport {
   id: string;
+  first_name: string;
+  last_name: string;
   name: string;
   age_group: string;
   parent_name: string;
@@ -148,9 +150,9 @@ export default function AdminSettingsPage() {
     // Fetch players with parent names
     const { data: players, error: fetchErr } = await supabase
       .from("players")
-      .select("id, name, age_group, parent_id")
+      .select("id, first_name, last_name, name, age_group, parent_id")
       .order("age_group")
-      .order("name");
+      .order("first_name");
 
     if (fetchErr) {
       setError(fetchErr.message);
@@ -172,12 +174,13 @@ export default function AdminSettingsPage() {
     }
 
     // Build CSV
-    const lines = ["Player ID,Player Name,School Year,Parent Name,Team Name,Tournament"];
+    const lines = ["Player ID,First Name,Last Name,School Year,Parent Name,Team Name,Tournament"];
     for (const p of players ?? []) {
       lines.push(
         [
           p.id,
-          csvEscape(p.name),
+          csvEscape(p.first_name),
+          csvEscape(p.last_name),
           p.age_group,
           csvEscape(parentNames[p.parent_id] ?? ""),
           "", // Team Name — blank for coaches to fill in

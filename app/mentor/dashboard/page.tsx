@@ -31,6 +31,8 @@ interface Team {
 
 interface Player {
   id: string;
+  first_name: string;
+  last_name: string;
   name: string;
   age_group: SchoolYear;
 }
@@ -156,7 +158,7 @@ export default function MentorDashboard() {
       const [playersRes, matchesRes] = await Promise.all([
         supabase
           .from("players")
-          .select("id, name, age_group")
+          .select("id, first_name, last_name, name, age_group")
           .eq("team_id", teamData.id)
           .returns<Player[]>(),
         supabase
@@ -324,7 +326,7 @@ export default function MentorDashboard() {
                     className={`h-3 w-3 shrink-0 rounded-full ${AGE_DOT[p.age_group]}`}
                   />
                   <span className="flex-1 text-base font-semibold text-foreground truncate">
-                    {p.name}
+                    {p.first_name} {p.last_name}
                   </span>
                   <Badge
                     variant="secondary"

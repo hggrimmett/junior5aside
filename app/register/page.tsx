@@ -31,7 +31,8 @@ interface AuthFields {
 }
 
 interface ChildField {
-  name: string;
+  firstName: string;
+  lastName: string;
   schoolYear: SchoolYear;
 }
 
@@ -151,7 +152,7 @@ export default function RegisterPage() {
 
   // Photo upload sub-step state (Step 3)
   const [showPhotos, setShowPhotos] = useState(false);
-  const [playerIds, setPlayerIds] = useState<{ id: string; name: string }[]>([]);
+  const [playerIds, setPlayerIds] = useState<{ id: string; first_name: string; last_name: string; name: string }[]>([]);
 
   // Step 1 form
   const {
@@ -169,7 +170,7 @@ export default function RegisterPage() {
     formState: { errors: childErrors, isSubmitting: childSubmitting },
     reset: resetChildren,
   } = useForm<ParentStep2>({
-    defaultValues: { children: [{ name: "", schoolYear: "Y3" }] },
+    defaultValues: { children: [{ firstName: "", lastName: "", schoolYear: "Y3" }] },
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -188,7 +189,7 @@ export default function RegisterPage() {
     setShowPhotos(false);
     setPlayerIds([]);
     resetAuth();
-    resetChildren({ children: [{ name: "", schoolYear: "Y3" }] });
+    resetChildren({ children: [{ firstName: "", lastName: "", schoolYear: "Y3" }] });
   }
 
   // ── Step 1: Auth + Profile ───────────────────────────────
@@ -252,14 +253,16 @@ export default function RegisterPage() {
 
     const rows = data.children.map((c) => ({
       parent_id: parentUid,
-      name: c.name.trim(),
+      first_name: c.firstName.trim(),
+      last_name: c.lastName.trim(),
+      name: `${c.firstName.trim()} ${c.lastName.trim()}`,
       age_group: c.schoolYear,
     }));
 
     const { data: inserted, error: insertErr } = await supabase
       .from("players")
       .insert(rows)
-      .select("id, name");
+      .select("id, first_name, last_name, name");
 
     if (insertErr) {
       setServerError(insertErr.message);
@@ -517,7 +520,7 @@ export default function RegisterPage() {
                   }
                 />
                 <span className="text-xs font-semibold text-foreground text-center max-w-[80px] truncate">
-                  {player.name}
+                  {player.first_name ?? player.name}
                 </span>
               </div>
             ))}
@@ -574,20 +577,37 @@ export default function RegisterPage() {
                   )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Input
-                    type="text"
-                    placeholder="Child's name"
-                    className="h-12"
-                    {...regChild(`children.${index}.name` as const, {
-                      required: "Name is required.",
-                    })}
-                  />
-                  {childErrors.children?.[index]?.name && (
-                    <p className="text-xs text-destructive">
-                      {childErrors.children[index].name?.message}
-                    </p>
-                  )}
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-1.5">
+                    <Input
+                      type="text"
+                      placeholder="First name"
+                      className="h-12"
+                      {...regChild(`children.${index}.firstName` as const, {
+                        required: "First name is required.",
+                      })}
+                    />
+                    {childErrors.children?.[index]?.firstName && (
+                      <p className="text-xs text-destructive">
+                        {childErrors.children[index].firstName?.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <Input
+                      type="text"
+                      placeholder="Last name"
+                      className="h-12"
+                      {...regChild(`children.${index}.lastName` as const, {
+                        required: "Last name is required.",
+                      })}
+                    />
+                    {childErrors.children?.[index]?.lastName && (
+                      <p className="text-xs text-destructive">
+                        {childErrors.children[index].lastName?.message}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -622,7 +642,7 @@ export default function RegisterPage() {
 
           <button
             type="button"
-            onClick={() => append({ name: "", schoolYear: "Y3" })}
+            onClick={() => append({ firstName: "", lastName: "", schoolYear: "Y3" })}
             className="w-full rounded-2xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition hover:border-cricket hover:text-cricket focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             + Add Another Child

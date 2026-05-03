@@ -16,6 +16,8 @@ type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
 
 interface Player {
   id: string;
+  first_name: string;
+  last_name: string;
   name: string;
   age_group: SchoolYear;
   team_id: string | null;
@@ -73,7 +75,7 @@ export default function ParentDashboard() {
     // 2. Children
     const { data: players, error: playersErr } = await supabase
       .from("players")
-      .select("id, name, age_group, team_id")
+      .select("id, first_name, last_name, name, age_group, team_id")
       .eq("parent_id", user.id)
       .returns<Player[]>();
 
@@ -252,7 +254,7 @@ function TradingCard({ card }: { card: ChildCard }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="text-2xl font-black leading-tight text-white truncate">
-                {player.name}
+                {player.first_name} {player.last_name}
               </h3>
               <p className="mt-1 text-sm font-medium text-white/70 truncate">
                 {team ? team.name : "Unassigned"}

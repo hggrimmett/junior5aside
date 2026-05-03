@@ -255,9 +255,9 @@ export default function TournamentsPage() {
 
     const { data: players, error: fetchErr } = await supabase
       .from("players")
-      .select("name, age_group")
+      .select("first_name, last_name, age_group")
       .order("age_group")
-      .order("name");
+      .order("first_name");
 
     if (fetchErr) {
       setError(fetchErr.message);
@@ -265,9 +265,9 @@ export default function TournamentsPage() {
       return;
     }
 
-    const lines = ["Name,School Year,Competition,Team Name"];
+    const lines = ["First Name,Last Name,School Year,Competition,Team Name"];
     for (const p of players ?? []) {
-      lines.push(`${csvEscape(p.name)},${p.age_group},,`);
+      lines.push(`${csvEscape(p.first_name)},${csvEscape(p.last_name)},${p.age_group},,`);
     }
 
     const csv = lines.join("\n");
@@ -299,24 +299,26 @@ export default function TournamentsPage() {
     const rows = text.split("\n").map((r) => r.split(",").map((c) => c.trim().replace(/^"|"$/g, "")));
 
     const header = rows[0]?.map((h) => h.toLowerCase()) ?? [];
-    const nameIdx = header.indexOf("name");
+    const firstNameIdx = header.indexOf("first name");
+    const lastNameIdx = header.indexOf("last name");
     const compIdx = header.indexOf("competition");
     const teamIdx = header.indexOf("team name");
 
-    if (nameIdx === -1 || compIdx === -1 || teamIdx === -1) {
-      setError("CSV must have 'Name', 'Competition', and 'Team Name' columns.");
+    if (firstNameIdx === -1 || lastNameIdx === -1 || compIdx === -1 || teamIdx === -1) {
+      setError("CSV must have 'First Name', 'Last Name', 'Competition', and 'Team Name' columns.");
       setImporting(false);
       return;
     }
 
-    // Fetch all players to match by name
+    // Fetch all players to match by first_name + last_name
     const { data: allPlayers } = await supabase
       .from("players")
-      .select("id, name");
+      .select("id, first_name, last_name");
 
     const playerLookup: Record<string, string> = {};
     for (const p of allPlayers ?? []) {
-      playerLookup[p.name.toLowerCase().trim()] = p.id;
+      const key = `${p.first_name} ${p.last_name}`.toLowerCase().trim();
+      playerLookup[key] = p.id;
     }
 
     // Fetch existing tournaments
@@ -336,13 +338,15 @@ export default function TournamentsPage() {
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      const name = row[nameIdx]?.trim();
+      const firstName = row[firstNameIdx]?.trim();
+      const lastName = row[lastNameIdx]?.trim();
       const comp = row[compIdx]?.trim();
       const teamName = row[teamIdx]?.trim();
 
-      if (!name || !comp || !teamName) { skipped++; continue; }
+      if (!firstName || !lastName || !comp || !teamName) { skipped++; continue; }
 
-      const playerId = playerLookup[name.toLowerCase()];
+      const fullName = `${firstName} ${lastName}`.toLowerCase();
+      const playerId = playerLookup[fullName];
       if (!playerId) { skipped++; continue; }
 
       const key = `${teamName}|||${comp}`;

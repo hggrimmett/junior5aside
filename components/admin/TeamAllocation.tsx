@@ -28,6 +28,8 @@ type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
 
 interface Player {
   id: string;
+  first_name: string;
+  last_name: string;
   name: string;
   age_group: SchoolYear;
   team_id: string | null;
@@ -102,19 +104,14 @@ function PlayerCircle({
 
   const colors = SCHOOL_YEAR_COLORS[player.age_group];
 
-  const initials = player.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = `${player.first_name?.[0] ?? ""}${player.last_name?.[0] ?? ""}`.toUpperCase();
 
   const inner = (
     <div className="flex flex-col items-center gap-1">
       {player.avatar_url ? (
         <img
           src={player.avatar_url}
-          alt={player.name}
+          alt={`${player.first_name} ${player.last_name}`}
           className={`h-14 w-14 rounded-full object-cover ring-2 ${colors.ring} ${
             isDragging ? "opacity-30" : ""
           }`}
@@ -129,7 +126,7 @@ function PlayerCircle({
         </span>
       )}
       <span className="w-16 truncate text-center text-xs font-semibold leading-tight">
-        {player.name.split(" ")[0]}
+        {player.first_name}
       </span>
     </div>
   );

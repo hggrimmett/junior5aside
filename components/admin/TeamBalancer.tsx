@@ -42,6 +42,8 @@ interface Team {
 
 interface Player {
   id: string;
+  first_name: string;
+  last_name: string;
   name: string;
   age_group: SchoolYear;
   team_id: string | null;
@@ -82,13 +84,8 @@ const COLOUR_STYLES: Record<
 
 // ── Helpers ────────────────────────────────────────────────
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0] ?? "")
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+function getInitials(firstName: string, lastName: string): string {
+  return `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase();
 }
 
 // ── PlayerAvatar — draggable ───────────────────────────────
@@ -114,7 +111,7 @@ function PlayerAvatar({
       {player.avatar_url ? (
         <img
           src={player.avatar_url}
-          alt={player.name}
+          alt={`${player.first_name} ${player.last_name}`}
           className={`h-12 w-12 rounded-full object-cover ring-2 ${styles.ring} ${
             isDragging && !overlay ? "opacity-25" : ""
           }`}
@@ -125,11 +122,11 @@ function PlayerAvatar({
             isDragging && !overlay ? "opacity-25" : ""
           }`}
         >
-          {getInitials(player.name)}
+          {getInitials(player.first_name, player.last_name)}
         </span>
       )}
       <span className="w-14 truncate text-center text-[10px] font-semibold leading-tight">
-        {player.name.split(" ")[0]}
+        {player.first_name}
       </span>
     </div>
   );
@@ -290,13 +287,13 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
       teamIds.length > 0
         ? supabase
             .from("players")
-            .select("id, name, age_group, team_id, avatar_url")
+            .select("id, first_name, last_name, name, age_group, team_id, avatar_url")
             .in("team_id", teamIds)
             .returns<Player[]>()
         : Promise.resolve({ data: [] as Player[], error: null }),
       supabase
         .from("players")
-        .select("id, name, age_group, team_id, avatar_url")
+        .select("id, first_name, last_name, name, age_group, team_id, avatar_url")
         .is("team_id", null)
         .in("age_group", relevantYears)
         .returns<Player[]>(),
