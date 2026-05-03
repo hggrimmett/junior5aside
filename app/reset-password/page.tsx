@@ -1,0 +1,125 @@
+"use client";
+
+import { useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export default function ResetPasswordPage() {
+  const supabase = getSupabaseBrowserClient();
+
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+
+    const { error: updateErr } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (updateErr) {
+      setError(updateErr.message);
+      setLoading(false);
+      return;
+    }
+
+    setDone(true);
+    setLoading(false);
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#f5f5f5] px-6 py-16">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+            New Password
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Choose a new password for your account
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-background shadow-md px-6 py-7 space-y-5">
+          {done ? (
+            <div className="space-y-4 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cricket/10 text-cricket">
+                <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-base font-bold text-foreground">Password updated</p>
+              <p className="text-sm text-muted-foreground">
+                You can now sign in with your new password.
+              </p>
+              <button
+                onClick={() => (window.location.href = "/login")}
+                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity active:opacity-80"
+              >
+                Sign In
+              </button>
+            </div>
+          ) : (
+            <>
+              {error && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleUpdate} className="space-y-4" noValidate>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">New Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Min. 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirm">Confirm Password</Label>
+                  <Input
+                    id="confirm"
+                    type="password"
+                    placeholder="Repeat password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
+                >
+                  {loading ? "Updating..." : "Update Password"}
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

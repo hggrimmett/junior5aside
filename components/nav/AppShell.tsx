@@ -38,7 +38,7 @@ const NAV = [
 ];
 
 // No chrome on these pages
-const BARE_PAGES = ["/", "/login", "/register"];
+const BARE_PAGES = ["/", "/login", "/register", "/forgot-password", "/reset-password"];
 
 // ── Component ──────────────────────────────────────────────
 
