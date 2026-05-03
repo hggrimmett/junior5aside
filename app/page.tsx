@@ -24,6 +24,12 @@ export default function HomePage() {
           >
             View Standings
           </Link>
+          <Link
+            href="/profile"
+            className="block rounded-xl border border-gray-200 bg-white py-3 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50"
+          >
+            My Profile
+          </Link>
         </div>
       </div>
     </div>
