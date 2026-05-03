@@ -1,16 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-// Routes that don't require authentication
-const PUBLIC_PATHS = ["/register", "/standings"];
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // Skip public paths
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
 
   // Create a Supabase client that reads/writes cookies via the request/response
   let response = NextResponse.next({ request });
@@ -39,15 +31,21 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // ── Unauthenticated → redirect to /register ─────────────
-  if (!user) {
+  // Unauthenticated users trying to access protected routes → redirect to /register
+  if (!user && pathname.startsWith("/admin")) {
     const url = request.nextUrl.clone();
     url.pathname = "/register";
     return NextResponse.redirect(url);
   }
 
-  // ── Admin route guard ─────────���──────────────────────────
-  if (pathname.startsWith("/admin")) {
+  if (!user && pathname.startsWith("/mentor")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/register";
+    return NextResponse.redirect(url);
+  }
+
+  // Admin route guard: check role via profiles table
+  if (user && pathname.startsWith("/admin")) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -56,7 +54,7 @@ export async function middleware(request: NextRequest) {
 
     if (profile?.role !== "admin") {
       const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname = "/register";
       return NextResponse.redirect(url);
     }
   }
@@ -67,11 +65,11 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all paths except:
-     * - _next/static, _next/image (Next.js internals)
-     * - favicon.ico, sitemap.xml, robots.txt
-     * - public assets
+     * Only run middleware on protected routes:
+     * - /admin/*
+     * - /mentor/*
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/admin/:path*",
+    "/mentor/:path*",
   ],
 };
