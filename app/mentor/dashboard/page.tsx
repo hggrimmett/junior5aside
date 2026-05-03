@@ -6,7 +6,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 // ── Types ──────────────────────────────────────────────────
 
-type AgeGroup = "Blue" | "Green" | "Red";
+type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
 
 interface Profile {
   id: string;
@@ -23,7 +23,7 @@ interface Team {
 interface Player {
   id: string;
   name: string;
-  age_group: AgeGroup;
+  age_group: SchoolYear;
 }
 
 interface MatchRow {
@@ -38,10 +38,13 @@ interface MatchRow {
   team_b: { id: string; name: string };
 }
 
-const AGE_DOT: Record<AgeGroup, string> = {
-  Blue: "bg-blue-500",
-  Green: "bg-green-500",
-  Red: "bg-red-500",
+const AGE_DOT: Record<SchoolYear, string> = {
+  Y3: "bg-blue-500",
+  Y4: "bg-green-500",
+  Y5: "bg-amber-500",
+  Y6: "bg-red-500",
+  Y7: "bg-purple-500",
+  Y8: "bg-pink-500",
 };
 
 // ── Helpers ────────────────────────────────────────────────

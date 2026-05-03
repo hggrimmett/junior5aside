@@ -15,12 +15,12 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 // ── Types ──────────────────────────────────────────────────
 
-type AgeGroup = "Blue" | "Green" | "Red";
+type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
 
 interface Player {
   id: string;
   name: string;
-  age_group: AgeGroup;
+  age_group: SchoolYear;
   team_id: string | null;
   parent_id: string;
 }
@@ -32,12 +32,15 @@ interface Team {
   mentor_id: string | null;
 }
 
-const AGE_GROUPS: AgeGroup[] = ["Blue", "Green", "Red"];
+const SCHOOL_YEARS: SchoolYear[] = ["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"];
 
-const AGE_GROUP_COLORS: Record<AgeGroup, { bg: string; ring: string; text: string }> = {
-  Blue: { bg: "bg-blue-50", ring: "ring-blue-300", text: "text-blue-700" },
-  Green: { bg: "bg-green-50", ring: "ring-green-300", text: "text-green-700" },
-  Red: { bg: "bg-red-50", ring: "ring-red-300", text: "text-red-700" },
+const SCHOOL_YEAR_COLORS: Record<SchoolYear, { bg: string; ring: string; text: string }> = {
+  Y3: { bg: "bg-blue-50", ring: "ring-blue-300", text: "text-blue-700" },
+  Y4: { bg: "bg-green-50", ring: "ring-green-300", text: "text-green-700" },
+  Y5: { bg: "bg-amber-50", ring: "ring-amber-300", text: "text-amber-700" },
+  Y6: { bg: "bg-red-50", ring: "ring-red-300", text: "text-red-700" },
+  Y7: { bg: "bg-purple-50", ring: "ring-purple-300", text: "text-purple-700" },
+  Y8: { bg: "bg-pink-50", ring: "ring-pink-300", text: "text-pink-700" },
 };
 
 // ── Draggable Player Card ──────────────────────────────────
@@ -48,7 +51,7 @@ function PlayerCard({ player, overlay }: { player: Player; overlay?: boolean }) 
     data: player,
   });
 
-  const colors = AGE_GROUP_COLORS[player.age_group];
+  const colors = SCHOOL_YEAR_COLORS[player.age_group];
 
   if (overlay) {
     return (
@@ -131,7 +134,7 @@ export default function TeamAllocation({
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [ageFilter, setAgeFilter] = useState<AgeGroup>("Blue");
+  const [ageFilter, setAgeFilter] = useState<SchoolYear>("Y3");
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -273,8 +276,8 @@ export default function TeamAllocation({
       {/* Header row: age filter + create button */}
       <div className="flex items-center justify-between">
         <div className="flex rounded-lg bg-gray-100 p-1">
-          {AGE_GROUPS.map((g) => {
-            const c = AGE_GROUP_COLORS[g];
+          {SCHOOL_YEARS.map((g) => {
+            const c = SCHOOL_YEAR_COLORS[g];
             return (
               <button
                 key={g}

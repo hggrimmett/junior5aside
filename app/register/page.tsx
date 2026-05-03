@@ -7,7 +7,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 // ── Types ──────────────────────────────────────────────────
 
 type Role = "parent" | "mentor";
-type AgeGroup = "Blue" | "Green" | "Red";
+type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
 
 interface AuthFields {
   fullName: string;
@@ -18,14 +18,14 @@ interface AuthFields {
 
 interface ChildField {
   name: string;
-  ageGroup: AgeGroup;
+  schoolYear: SchoolYear;
 }
 
 interface ParentStep2 {
   children: ChildField[];
 }
 
-const AGE_GROUPS: AgeGroup[] = ["Blue", "Green", "Red"];
+const SCHOOL_YEARS: SchoolYear[] = ["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"];
 
 // ── Spinner ────────────────────────────────────────────────
 
@@ -57,11 +57,6 @@ function Spinner() {
 // ── Page ───────────────────────────────────────────────────
 
 export default function RegisterPage() {
-  // Temporary debug — remove after confirming env vars work
-  const debugUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "NOT SET";
-  const debugKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "NOT SET";
-  console.log("ENV CHECK:", { url: debugUrl, keyPrefix: debugKey.slice(0, 10) });
-
   const supabase = getSupabaseBrowserClient();
 
   const [role, setRole] = useState<Role>("parent");
@@ -86,7 +81,7 @@ export default function RegisterPage() {
     formState: { errors: childErrors, isSubmitting: childSubmitting },
     reset: resetChildren,
   } = useForm<ParentStep2>({
-    defaultValues: { children: [{ name: "", ageGroup: "Blue" }] },
+    defaultValues: { children: [{ name: "", schoolYear: "Y3" }] },
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -103,7 +98,7 @@ export default function RegisterPage() {
     setDone(false);
     setServerError(null);
     resetAuth();
-    resetChildren({ children: [{ name: "", ageGroup: "Blue" }] });
+    resetChildren({ children: [{ name: "", schoolYear: "Y3" }] });
   }
 
   // ── Step 1: Auth + Profile ───────────────────────────────
@@ -166,7 +161,7 @@ export default function RegisterPage() {
     const rows = data.children.map((c) => ({
       parent_id: parentUid,
       name: c.name.trim(),
-      age_group: c.ageGroup,
+      age_group: c.schoolYear,
     }));
 
     const { error: insertErr } = await supabase.from("players").insert(rows);
@@ -383,12 +378,12 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <label className={labelClass}>Age Group</label>
+                    <label className={labelClass}>School Year</label>
                     <select
                       className={inputClass}
-                      {...regChild(`children.${index}.ageGroup` as const)}
+                      {...regChild(`children.${index}.schoolYear` as const)}
                     >
-                      {AGE_GROUPS.map((g) => (
+                      {SCHOOL_YEARS.map((g) => (
                         <option key={g} value={g}>
                           {g}
                         </option>
@@ -402,7 +397,7 @@ export default function RegisterPage() {
 
           <button
             type="button"
-            onClick={() => append({ name: "", ageGroup: "Blue" })}
+            onClick={() => append({ name: "", schoolYear: "Y3" })}
             className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-sm font-medium text-gray-400 transition hover:border-emerald-400 hover:text-emerald-600"
           >
             + Add Another Child

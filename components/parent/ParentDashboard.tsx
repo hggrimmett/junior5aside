@@ -6,12 +6,12 @@ import { calculateMatchScore } from "@/lib/tournament-logic";
 
 // ── Types ──────────────────────────────────────────────────
 
-type AgeGroup = "Blue" | "Green" | "Red";
+type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
 
 interface Player {
   id: string;
   name: string;
-  age_group: AgeGroup;
+  age_group: SchoolYear;
   team_id: string | null;
 }
 
@@ -41,21 +41,36 @@ interface ChildCard {
   lastMatch: MatchRow | null;
 }
 
-const AGE_ACCENT: Record<AgeGroup, { gradient: string; dot: string; badge: string }> = {
-  Blue: {
+const AGE_ACCENT: Record<SchoolYear, { gradient: string; dot: string; badge: string }> = {
+  Y3: {
     gradient: "from-blue-600 to-blue-500",
     dot: "bg-blue-400",
     badge: "bg-blue-100 text-blue-700",
   },
-  Green: {
+  Y4: {
     gradient: "from-green-600 to-green-500",
     dot: "bg-green-400",
     badge: "bg-green-100 text-green-700",
   },
-  Red: {
+  Y5: {
+    gradient: "from-amber-600 to-amber-500",
+    dot: "bg-amber-400",
+    badge: "bg-amber-100 text-amber-700",
+  },
+  Y6: {
     gradient: "from-red-600 to-red-500",
     dot: "bg-red-400",
     badge: "bg-red-100 text-red-700",
+  },
+  Y7: {
+    gradient: "from-purple-600 to-purple-500",
+    dot: "bg-purple-400",
+    badge: "bg-purple-100 text-purple-700",
+  },
+  Y8: {
+    gradient: "from-pink-600 to-pink-500",
+    dot: "bg-pink-400",
+    badge: "bg-pink-100 text-pink-700",
   },
 };
 
