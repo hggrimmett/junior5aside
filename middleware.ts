@@ -84,7 +84,8 @@ export async function middleware(request: NextRequest) {
 
       const profiles = await profileRes.json();
 
-      if (!Array.isArray(profiles) || profiles[0]?.role !== "admin") {
+      const role = profiles[0]?.role;
+      if (!Array.isArray(profiles) || (role !== "superadmin" && role !== "coach")) {
         const url = request.nextUrl.clone();
         url.pathname = "/register";
         return NextResponse.redirect(url);

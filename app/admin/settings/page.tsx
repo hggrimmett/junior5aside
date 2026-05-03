@@ -104,11 +104,11 @@ export default function AdminSettingsPage() {
       return;
     }
 
-    // 3. Delete non-admin profiles
+    // 3. Delete non-superadmin profiles
     const { error: profilesErr } = await supabase
       .from("profiles")
       .delete()
-      .neq("role", "admin");
+      .neq("role", "superadmin");
 
     if (profilesErr) {
       setError(`Profiles delete failed: ${profilesErr.message}`);
@@ -319,7 +319,7 @@ export default function AdminSettingsPage() {
               Tournament Reset &amp; GDPR Purge
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Permanently deletes all player and non-admin profile data.
+              Permanently deletes all player and non-superadmin profile data.
               Matches and teams are retained but anonymized (mentor links removed).
             </p>
           </div>
