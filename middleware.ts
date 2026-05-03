@@ -2,13 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
   // Read Supabase auth token from cookies
-  // @supabase/ssr stores the session across chunked cookies named sb-<ref>-auth-token.X
-  const ref = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(
-    /^https?:\/\/([^.]+).*$/,
-    "$1"
-  );
+  const ref = supabaseUrl.replace(/^https?:\/\/([^.]+).*$/, "$1");
   const cookiePrefix = `sb-${ref}-auth-token`;
 
   // Reassemble chunked cookie value
@@ -17,7 +15,6 @@ export async function middleware(request: NextRequest) {
   if (base) {
     token = base;
   } else {
-    // Try chunked cookies: sb-<ref>-auth-token.0, .1, .2 ...
     let i = 0;
     while (true) {
       const chunk = request.cookies.get(`${cookiePrefix}.${i}`)?.value;
@@ -27,35 +24,32 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // No token → redirect to register
+  // No token → redirect to login
   if (!token) {
     const url = request.nextUrl.clone();
-    url.pathname = "/register";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // For /admin routes, verify the user's role via Supabase REST API
+  // Extract access_token from the cookie value
+  let accessToken = "";
+  try {
+    const parsed = JSON.parse(token);
+    accessToken = parsed.access_token ?? "";
+  } catch {
+    accessToken = token;
+  }
+
+  if (!accessToken) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // For /admin routes, verify user is superadmin or coach
   if (pathname.startsWith("/admin")) {
     try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-      // Parse the token to extract the access_token
-      let accessToken = "";
-      try {
-        const parsed = JSON.parse(token);
-        accessToken = parsed.access_token ?? "";
-      } catch {
-        accessToken = token;
-      }
-
-      if (!accessToken) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/register";
-        return NextResponse.redirect(url);
-      }
-
-      // Get user ID from Supabase auth
+      // Get user from auth
       const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -65,34 +59,36 @@ export async function middleware(request: NextRequest) {
 
       if (!userRes.ok) {
         const url = request.nextUrl.clone();
-        url.pathname = "/register";
+        url.pathname = "/login";
         return NextResponse.redirect(url);
       }
 
       const user = await userRes.json();
 
-      // Check profile role
+      // Use service role to bypass RLS for the role check
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
       const profileRes = await fetch(
         `${supabaseUrl}/rest/v1/profiles?select=role&id=eq.${user.id}&limit=1`,
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: anonKey,
+            Authorization: `Bearer ${serviceKey ?? accessToken}`,
+            apikey: serviceKey ?? anonKey,
           },
         }
       );
 
       const profiles = await profileRes.json();
+      const role = profiles?.[0]?.role;
 
-      const role = profiles[0]?.role;
-      if (!Array.isArray(profiles) || (role !== "superadmin" && role !== "coach")) {
+      if (role !== "superadmin" && role !== "coach") {
         const url = request.nextUrl.clone();
-        url.pathname = "/register";
+        url.pathname = "/dashboard";
         return NextResponse.redirect(url);
       }
     } catch {
       const url = request.nextUrl.clone();
-      url.pathname = "/register";
+      url.pathname = "/dashboard";
       return NextResponse.redirect(url);
     }
   }
