@@ -20,11 +20,31 @@ interface Team {
   name: string;
 }
 
+interface Player {
+  id: string;
+  first_name: string;
+  last_name: string;
+  age_group: string;
+  avatar_url: string | null;
+  parent_id: string | null;
+}
+
+interface ParentContact {
+  id: string;
+  full_name: string;
+  mobile_number: string;
+}
+
 export default function HomePage() {
   const supabase = getSupabaseBrowserClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [mentorTeam, setMentorTeam] = useState<Team | null | "loading">("loading");
   const [loading, setLoading] = useState(true);
+
+  // Mentor roster state
+  const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
+  const [parentContacts, setParentContacts] = useState<ParentContact[]>([]);
+  const [pendingMatchId, setPendingMatchId] = useState<string | null | "none">("none");
 
   // Mentor profile edit
   const [fullName, setFullName] = useState("");
@@ -48,7 +68,7 @@ export default function HomePage() {
         setFullName(data.full_name);
         setMobile(data.mobile_number);
 
-        // If mentor, fetch their team
+        // If mentor, fetch their team and related data
         if (data.role === "mentor") {
           const { data: team } = await supabase
             .from("teams")
@@ -57,6 +77,45 @@ export default function HomePage() {
             .limit(1)
             .single<Team>();
           setMentorTeam(team ?? null);
+
+          if (team) {
+            // Fetch team players
+            const { data: players } = await supabase
+              .from("players")
+              .select("id, first_name, last_name, age_group, avatar_url, parent_id")
+              .eq("team_id", team.id);
+
+            if (players && players.length > 0) {
+              setTeamPlayers(players);
+
+              // Fetch parent contacts for those players
+              const parentIds = players
+                .map((p: Player) => p.parent_id)
+                .filter((id): id is string => id !== null);
+
+              if (parentIds.length > 0) {
+                const { data: contacts } = await supabase
+                  .from("profiles")
+                  .select("id, full_name, mobile_number")
+                  .in("id", parentIds);
+                setParentContacts(contacts ?? []);
+              }
+            }
+
+            // Fetch first pending match for this team
+            const { data: match } = await supabase
+              .from("matches")
+              .select("id")
+              .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`)
+              .eq("status", false)
+              .order("scheduled_time", { ascending: true })
+              .limit(1)
+              .single();
+
+            setPendingMatchId(match ? match.id : null);
+          } else {
+            setPendingMatchId(null);
+          }
         }
       }
       setLoading(false);
@@ -93,6 +152,8 @@ export default function HomePage() {
   // ── Mentor view ──────────────────────────────────────────
 
   if (isMentor) {
+    const teamId = mentorTeam && mentorTeam !== "loading" ? mentorTeam.id : null;
+
     return (
       <div className="px-4 py-5 space-y-5">
         <h2 className="text-xl font-extrabold tracking-tight text-foreground">
@@ -108,22 +169,80 @@ export default function HomePage() {
             {mentorTeam === "loading" ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : mentorTeam ? (
-              <div className="flex items-center justify-between">
-                <p className="text-lg font-extrabold text-foreground">{mentorTeam.name}</p>
-                <Link
-                  href="/mentor/dashboard"
-                  className="text-sm font-bold text-cricket hover:underline"
-                >
-                  View →
-                </Link>
-              </div>
+              <p className="text-2xl font-extrabold text-foreground">{mentorTeam.name}</p>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Not assigned to a team yet. Check back soon.
-              </p>
+              <p className="text-sm text-muted-foreground">Not assigned yet</p>
             )}
           </CardContent>
         </Card>
+
+        {/* Live Scorer button */}
+        {teamId && (
+          pendingMatchId === "none" ? (
+            /* still loading match */ null
+          ) : pendingMatchId ? (
+            <Link href={`/score/${pendingMatchId}`}>
+              <button className="inline-flex h-16 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-lg font-black text-cricket-foreground shadow-md transition-opacity active:opacity-80">
+                Live Scorer
+              </button>
+            </Link>
+          ) : (
+            <button
+              disabled
+              className="inline-flex h-16 w-full items-center justify-center rounded-2xl bg-muted px-6 text-lg font-black text-muted-foreground shadow-md cursor-not-allowed"
+            >
+              No matches scheduled
+            </button>
+          )
+        )}
+
+        {/* Team Roster */}
+        {teamPlayers.length > 0 && (
+          <Card className="rounded-2xl shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-black">Team Roster</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {teamPlayers.slice(0, 4).map((player) => {
+                const parent = parentContacts.find((c) => c.id === player.parent_id);
+                return (
+                  <div key={player.id} className="flex items-start gap-3">
+                    {/* Avatar */}
+                    {player.avatar_url ? (
+                      <img
+                        src={player.avatar_url}
+                        alt={player.first_name}
+                        className="h-12 w-12 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center shrink-0">
+                        <span className="text-base font-extrabold text-muted-foreground">
+                          {player.first_name.charAt(0)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-foreground leading-tight">
+                          {player.first_name} {player.last_name}
+                        </span>
+                        <Badge className="bg-cricket/10 text-cricket text-xs font-semibold border-0">
+                          {player.age_group}
+                        </Badge>
+                      </div>
+                      {/* Emergency contact */}
+                      {parent && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {parent.full_name} &middot; {parent.mobile_number}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
         {/* My Details */}
         <Card className="rounded-2xl shadow-md">

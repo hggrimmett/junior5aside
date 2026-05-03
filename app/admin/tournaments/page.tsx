@@ -265,9 +265,9 @@ export default function TournamentsPage() {
       return;
     }
 
-    const lines = ["First Name,Last Name,School Year,Competition,Team Name"];
+    const lines = ["First Name,Last Name,School Year,Competition,Team Name,Mentor Name"];
     for (const p of players ?? []) {
-      lines.push(`${csvEscape(p.first_name)},${csvEscape(p.last_name)},${p.age_group},,`);
+      lines.push(`${csvEscape(p.first_name)},${csvEscape(p.last_name)},${p.age_group},,,`);
     }
 
     const csv = lines.join("\n");
@@ -303,9 +303,10 @@ export default function TournamentsPage() {
     const lastNameIdx = header.indexOf("last name");
     const compIdx = header.indexOf("competition");
     const teamIdx = header.indexOf("team name");
+    const mentorNameIdx = header.indexOf("mentor name");
 
     if (firstNameIdx === -1 || lastNameIdx === -1 || compIdx === -1 || teamIdx === -1) {
-      setError("CSV must have 'First Name', 'Last Name', 'Competition', and 'Team Name' columns.");
+      setError("CSV must have 'First Name', 'Last Name', 'Competition', 'Team Name', and optionally 'Mentor Name' columns.");
       setImporting(false);
       return;
     }
@@ -321,6 +322,19 @@ export default function TournamentsPage() {
       playerLookup[key] = p.id;
     }
 
+    // Fetch all mentor profiles to match by full_name
+    const { data: mentorProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", "mentor");
+
+    const mentorByName: Record<string, string> = {};
+    for (const m of mentorProfiles ?? []) {
+      if (m.full_name) {
+        mentorByName[m.full_name.toLowerCase().trim()] = m.id;
+      }
+    }
+
     // Fetch existing tournaments
     const { data: existingTournaments } = await supabase
       .from("tournaments")
@@ -333,7 +347,7 @@ export default function TournamentsPage() {
     }
 
     // Collect team assignments
-    const teamPlayers = new Map<string, { colour: string; playerIds: string[] }>();
+    const teamPlayers = new Map<string, { colour: string; playerIds: string[]; mentorName: string }>();
     let skipped = 0;
 
     for (let i = 1; i < rows.length; i++) {
@@ -342,6 +356,7 @@ export default function TournamentsPage() {
       const lastName = row[lastNameIdx]?.trim();
       const comp = row[compIdx]?.trim();
       const teamName = row[teamIdx]?.trim();
+      const mentorName = mentorNameIdx !== -1 ? (row[mentorNameIdx]?.trim() ?? "") : "";
 
       if (!firstName || !lastName || !comp || !teamName) { skipped++; continue; }
 
@@ -351,7 +366,7 @@ export default function TournamentsPage() {
 
       const key = `${teamName}|||${comp}`;
       if (!teamPlayers.has(key)) {
-        teamPlayers.set(key, { colour: comp, playerIds: [] });
+        teamPlayers.set(key, { colour: comp, playerIds: [], mentorName });
       }
       teamPlayers.get(key)!.playerIds.push(playerId);
     }
@@ -360,7 +375,7 @@ export default function TournamentsPage() {
     let teamsCreated = 0;
     let playersAssigned = 0;
 
-    for (const [key, { colour, playerIds }] of teamPlayers) {
+    for (const [key, { colour, playerIds, mentorName }] of teamPlayers) {
       const teamName = key.split("|||")[0];
 
       // Find or create tournament
@@ -405,6 +420,17 @@ export default function TournamentsPage() {
         if (!newTeam) continue;
         teamId = newTeam.id;
         teamsCreated++;
+      }
+
+      // Assign mentor if a name was provided and matched
+      if (mentorName) {
+        const mentorId = mentorByName[mentorName.toLowerCase().trim()];
+        if (mentorId) {
+          await supabase
+            .from("teams")
+            .update({ mentor_id: mentorId })
+            .eq("id", teamId);
+        }
       }
 
       // Assign players

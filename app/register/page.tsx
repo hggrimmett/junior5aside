@@ -672,29 +672,12 @@ export default function RegisterPage() {
             Sign In
           </Link>
         </p>
-        {role === "parent" ? (
-          <p>
-            Registering as a mentor?{" "}
-            <button
-              type="button"
-              onClick={() => switchRole("mentor")}
-              className="font-semibold text-primary hover:underline"
-            >
-              Mentor signup
-            </button>
-          </p>
-        ) : (
-          <p>
-            Registering your children?{" "}
-            <button
-              type="button"
-              onClick={() => switchRole("parent")}
-              className="font-semibold text-primary hover:underline"
-            >
-              Parent signup
-            </button>
-          </p>
-        )}
+        <p>
+          Registering as a mentor?{" "}
+          <Link href="/register-mentor" className="font-semibold text-primary hover:underline">
+            Mentor signup
+          </Link>
+        </p>
       </div>
     </Shell>
   );
