@@ -21,6 +21,13 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -38,6 +45,12 @@ interface Team {
   id: string;
   name: string;
   tournament_id: string;
+  mentor_id: string | null;
+}
+
+interface Mentor {
+  id: string;
+  full_name: string;
 }
 
 interface Player {
@@ -152,22 +165,30 @@ function PlayerAvatar({
 function TeamDropCard({
   team,
   players,
-  maxTeamSize,
+  maxPlayerSlots,
   colour,
+  mentors,
+  assignedMentorIds,
+  onMentorChange,
 }: {
   team: Team;
   players: Player[];
-  maxTeamSize: number;
+  maxPlayerSlots: number;
   colour: TournamentColour;
+  mentors: Mentor[];
+  assignedMentorIds: Set<string>;
+  onMentorChange: (teamId: string, mentorId: string | null) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: team.id });
-  const isFull = players.length >= maxTeamSize;
+  const isFull = players.length >= maxPlayerSlots;
+  const hasMentor = !!team.mentor_id;
+  const isComplete = isFull && hasMentor;
 
   return (
     <Card
       ref={setNodeRef}
       className={`rounded-2xl shadow-md transition-all ${
-        isFull ? "opacity-60" : ""
+        isComplete ? "opacity-60" : ""
       } ${isOver && !isFull ? "ring-2 ring-[#114232] border-[#114232] bg-emerald-50/40" : ""}`}
     >
       <CardHeader className="px-4 pb-2 pt-4">
@@ -175,10 +196,10 @@ function TeamDropCard({
           <CardTitle className="truncate text-sm font-black">{team.name}</CardTitle>
           <div className="flex shrink-0 items-center gap-1.5">
             <span className="text-xs font-semibold text-muted-foreground">
-              {players.length}/{maxTeamSize}
+              {players.length}/{maxPlayerSlots}
             </span>
             {isFull && (
-              <Badge className="rounded-md bg-red-500 px-1.5 py-0 text-[10px] font-black text-white">
+              <Badge className="rounded-md bg-emerald-500 px-1.5 py-0 text-[10px] font-black text-white">
                 FULL
               </Badge>
             )}
@@ -186,18 +207,51 @@ function TeamDropCard({
         </div>
       </CardHeader>
 
-      <CardContent className="min-h-[72px] px-4 pb-4">
-        {players.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">
-            Drop players here
+      <CardContent className="space-y-3 px-4 pb-4">
+        {/* Mentor selector */}
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Mentor (5th player)
           </p>
-        ) : (
-          <div className="flex flex-wrap gap-3 pt-1">
-            {players.map((p) => (
-              <PlayerAvatar key={p.id} player={p} colour={colour} />
-            ))}
-          </div>
-        )}
+          <Select
+            value={team.mentor_id ?? ""}
+            onValueChange={(v) => onMentorChange(team.id, v || null)}
+          >
+            <SelectTrigger className={`h-10 text-xs ${!hasMentor ? "border-amber-400 bg-amber-50" : ""}`}>
+              <SelectValue placeholder="Assign mentor..." />
+            </SelectTrigger>
+            <SelectContent>
+              {mentors.map((m) => {
+                const taken = assignedMentorIds.has(m.id) && m.id !== team.mentor_id;
+                return (
+                  <SelectItem key={m.id} value={m.id} disabled={taken}>
+                    {m.full_name}{taken ? " (assigned)" : ""}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          {!hasMentor && (
+            <p className="text-[10px] font-semibold text-amber-600">
+              Mentor required
+            </p>
+          )}
+        </div>
+
+        {/* Players */}
+        <div className="min-h-[60px]">
+          {players.length === 0 ? (
+            <p className="py-3 text-center text-xs text-muted-foreground">
+              Drop players here
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {players.map((p) => (
+                <PlayerAvatar key={p.id} player={p} colour={colour} />
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -231,6 +285,7 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [mentors, setMentors] = useState<Mentor[]>([]);
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -264,20 +319,29 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
     const colour = tournamentData.colour as TournamentColour;
     const relevantYears = COLOUR_YEARS[colour] ?? [];
 
-    // 2. Fetch teams for this tournament
-    const { data: teamsData, error: teamsErr } = await supabase
-      .from("teams")
-      .select("id, name, tournament_id")
-      .eq("tournament_id", tournamentId)
-      .returns<Team[]>();
+    // 2. Fetch teams + mentors in parallel
+    const [teamsRes, mentorsRes] = await Promise.all([
+      supabase
+        .from("teams")
+        .select("id, name, tournament_id, mentor_id")
+        .eq("tournament_id", tournamentId)
+        .returns<Team[]>(),
+      supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "mentor")
+        .returns<Mentor[]>(),
+    ]);
 
-    if (teamsErr) {
-      setError(teamsErr.message);
+    if (teamsRes.error) {
+      setError(teamsRes.error.message);
       setLoading(false);
       return;
     }
 
-    setTeams(teamsData ?? []);
+    const teamsData = teamsRes.data ?? [];
+    setTeams(teamsData);
+    setMentors(mentorsRes.data ?? []);
 
     const teamIds = (teamsData ?? []).map((t) => t.id);
 
@@ -326,7 +390,8 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
 
   const colour: TournamentColour =
     (tournament?.colour as TournamentColour) ?? "Green";
-  const maxTeamSize = tournament?.max_team_size ?? 5;
+  // max_team_size is total including mentor; player slots = max - 1 (mentor is the 5th)
+  const maxPlayerSlots = Math.max(1, (tournament?.max_team_size ?? 5) - 1);
 
   const unassigned = useMemo(
     () => players.filter((p) => p.team_id === null),
@@ -345,8 +410,15 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
   }, [players, teams]);
 
   const totalRegistered = players.length;
-  const totalSlots = teams.length * maxTeamSize;
+  const totalPlayerSlots = teams.length * maxPlayerSlots;
   const unassignedCount = unassigned.length;
+  const teamsWithoutMentor = teams.filter((t) => !t.mentor_id).length;
+
+  // Set of mentor IDs already assigned to a team
+  const assignedMentorIds = useMemo(
+    () => new Set(teams.map((t) => t.mentor_id).filter(Boolean) as string[]),
+    [teams]
+  );
 
   // ── Drag handlers ──────────────────────────────────────
 
@@ -362,9 +434,9 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
     const playerId = active.id as string;
     const teamId = over.id as string;
 
-    // Don't drop onto a full team
+    // Don't drop onto a full team (player slots only, mentor is separate)
     const targetPlayers = teamPlayerMap.get(teamId) ?? [];
-    if (targetPlayers.length >= maxTeamSize) return;
+    if (targetPlayers.length >= maxPlayerSlots) return;
 
     // Optimistic update
     const previousTeamId =
@@ -385,6 +457,28 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
         prev.map((p) =>
           p.id === playerId ? { ...p, team_id: previousTeamId } : p
         )
+      );
+    }
+  }
+
+  // ── Mentor assignment ─────────────────────────────────
+
+  async function handleMentorChange(teamId: string, mentorId: string | null) {
+    // Optimistic
+    setTeams((prev) =>
+      prev.map((t) => (t.id === teamId ? { ...t, mentor_id: mentorId } : t))
+    );
+
+    const { error: err } = await supabase
+      .from("teams")
+      .update({ mentor_id: mentorId })
+      .eq("id", teamId);
+
+    if (err) {
+      setError(err.message);
+      // Revert
+      setTeams((prev) =>
+        prev.map((t) => (t.id === teamId ? { ...t, mentor_id: t.mentor_id } : t))
       );
     }
   }
@@ -452,9 +546,9 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
         </span>
         <span className="text-muted-foreground">&middot;</span>
         <span>
-          <span className="font-black text-foreground">{totalSlots}</span>{" "}
+          <span className="font-black text-foreground">{totalPlayerSlots}</span>{" "}
           <span className="text-muted-foreground">
-            slots ({teams.length} &times; {maxTeamSize})
+            player slots ({teams.length} &times; {maxPlayerSlots})
           </span>
         </span>
         <span className="text-muted-foreground">&middot;</span>
@@ -466,6 +560,15 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
           </span>{" "}
           <span className="text-muted-foreground">unassigned</span>
         </span>
+        {teamsWithoutMentor > 0 && (
+          <>
+            <span className="text-muted-foreground">&middot;</span>
+            <span>
+              <span className="font-black text-amber-600">{teamsWithoutMentor}</span>{" "}
+              <span className="text-muted-foreground">need mentor</span>
+            </span>
+          </>
+        )}
       </div>
 
       {/* DnD context */}
@@ -513,8 +616,11 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
                 key={t.id}
                 team={t}
                 players={teamPlayerMap.get(t.id) ?? []}
-                maxTeamSize={maxTeamSize}
+                maxPlayerSlots={maxPlayerSlots}
                 colour={colour}
+                mentors={mentors}
+                assignedMentorIds={assignedMentorIds}
+                onMentorChange={handleMentorChange}
               />
             ))}
           </div>
