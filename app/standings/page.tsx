@@ -6,12 +6,12 @@ import { getLeagueTable, TeamStanding } from "@/lib/tournament-logic";
 
 // ── Types ──────────────────────────────────────────────────
 
-type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
+type TournamentColour = "Green" | "Red" | "Blue";
 
 interface Tournament {
   id: string;
   name: string;
-  age_group_category: SchoolYear;
+  colour: TournamentColour;
 }
 
 interface TeamRow {
@@ -20,32 +20,21 @@ interface TeamRow {
 }
 
 interface TabConfig {
-  key: SchoolYear;
+  key: TournamentColour;
   label: string;
 }
 
 const TABS: TabConfig[] = [
-  { key: "Y3", label: "Year 3" },
-  { key: "Y4", label: "Year 4" },
-  { key: "Y5", label: "Year 5" },
-  { key: "Y6", label: "Year 6" },
-  { key: "Y7", label: "Year 7" },
-  { key: "Y8", label: "Year 8" },
+  { key: "Green", label: "Green (Y3/4)" },
+  { key: "Red", label: "Red (Y5/6)" },
+  { key: "Blue", label: "Blue (Y7/8)" },
 ];
 
 const TAB_STYLE: Record<
-  SchoolYear,
+  TournamentColour,
   { active: string; dot: string; finalistBg: string; finalistBorder: string; rankBg: string; rankText: string }
 > = {
-  Y3: {
-    active: "bg-blue-600 text-white shadow-sm shadow-blue-600/25",
-    dot: "bg-blue-500",
-    finalistBg: "bg-blue-50",
-    finalistBorder: "border-blue-200",
-    rankBg: "bg-blue-600",
-    rankText: "text-white",
-  },
-  Y4: {
+  Green: {
     active: "bg-green-600 text-white shadow-sm shadow-green-600/25",
     dot: "bg-green-500",
     finalistBg: "bg-green-50",
@@ -53,15 +42,7 @@ const TAB_STYLE: Record<
     rankBg: "bg-green-600",
     rankText: "text-white",
   },
-  Y5: {
-    active: "bg-amber-600 text-white shadow-sm shadow-amber-600/25",
-    dot: "bg-amber-500",
-    finalistBg: "bg-amber-50",
-    finalistBorder: "border-amber-200",
-    rankBg: "bg-amber-600",
-    rankText: "text-white",
-  },
-  Y6: {
+  Red: {
     active: "bg-red-600 text-white shadow-sm shadow-red-600/25",
     dot: "bg-red-500",
     finalistBg: "bg-red-50",
@@ -69,20 +50,12 @@ const TAB_STYLE: Record<
     rankBg: "bg-red-600",
     rankText: "text-white",
   },
-  Y7: {
-    active: "bg-purple-600 text-white shadow-sm shadow-purple-600/25",
-    dot: "bg-purple-500",
-    finalistBg: "bg-purple-50",
-    finalistBorder: "border-purple-200",
-    rankBg: "bg-purple-600",
-    rankText: "text-white",
-  },
-  Y8: {
-    active: "bg-pink-600 text-white shadow-sm shadow-pink-600/25",
-    dot: "bg-pink-500",
-    finalistBg: "bg-pink-50",
-    finalistBorder: "border-pink-200",
-    rankBg: "bg-pink-600",
+  Blue: {
+    active: "bg-blue-600 text-white shadow-sm shadow-blue-600/25",
+    dot: "bg-blue-500",
+    finalistBg: "bg-blue-50",
+    finalistBorder: "border-blue-200",
+    rankBg: "bg-blue-600",
     rankText: "text-white",
   },
 };
@@ -92,22 +65,16 @@ const TAB_STYLE: Record<
 export default function StandingsPage() {
   const supabase = getSupabaseBrowserClient();
 
-  const [activeTab, setActiveTab] = useState<SchoolYear>("Y3");
-  const [tournaments, setTournaments] = useState<Record<SchoolYear, Tournament | null>>({
-    Y3: null,
-    Y4: null,
-    Y5: null,
-    Y6: null,
-    Y7: null,
-    Y8: null,
+  const [activeTab, setActiveTab] = useState<TournamentColour>("Green");
+  const [tournaments, setTournaments] = useState<Record<TournamentColour, Tournament | null>>({
+    Green: null,
+    Red: null,
+    Blue: null,
   });
-  const [standings, setStandings] = useState<Record<SchoolYear, TeamStanding[]>>({
-    Y3: [],
-    Y4: [],
-    Y5: [],
-    Y6: [],
-    Y7: [],
-    Y8: [],
+  const [standings, setStandings] = useState<Record<TournamentColour, TeamStanding[]>>({
+    Green: [],
+    Red: [],
+    Blue: [],
   });
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -122,10 +89,10 @@ export default function StandingsPage() {
         supabase.from("teams").select("id, name").returns<TeamRow[]>(),
       ]);
 
-      const map: Record<SchoolYear, Tournament | null> = { Y3: null, Y4: null, Y5: null, Y6: null, Y7: null, Y8: null };
+      const map: Record<TournamentColour, Tournament | null> = { Green: null, Red: null, Blue: null };
       for (const t of tournamentsRes.data ?? []) {
-        if (!map[t.age_group_category]) {
-          map[t.age_group_category] = t;
+        if (!map[t.colour]) {
+          map[t.colour] = t;
         }
       }
       setTournaments(map);
@@ -144,10 +111,10 @@ export default function StandingsPage() {
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
-    const next: Record<SchoolYear, TeamStanding[]> = { Y3: [], Y4: [], Y5: [], Y6: [], Y7: [], Y8: [] };
+    const next: Record<TournamentColour, TeamStanding[]> = { Green: [], Red: [], Blue: [] };
 
     await Promise.all(
-      (["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"] as SchoolYear[]).map(async (group) => {
+      (["Green", "Red", "Blue"] as TournamentColour[]).map(async (group) => {
         const t = tournaments[group];
         if (!t) return;
         try {
@@ -164,7 +131,7 @@ export default function StandingsPage() {
   }, [supabase, tournaments]);
 
   useEffect(() => {
-    if (tournaments.Y3 || tournaments.Y4 || tournaments.Y5 || tournaments.Y6 || tournaments.Y7 || tournaments.Y8) {
+    if (tournaments.Green || tournaments.Red || tournaments.Blue) {
       refreshAll();
     }
   }, [tournaments, refreshAll]);

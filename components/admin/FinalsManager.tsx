@@ -6,12 +6,12 @@ import { getLeagueTable, TeamStanding } from "@/lib/tournament-logic";
 
 // ── Types ──────────────────────────────────────────────────
 
-type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
+type TournamentColour = "Green" | "Red" | "Blue";
 
 interface Tournament {
   id: string;
   name: string;
-  age_group_category: SchoolYear;
+  colour: TournamentColour;
 }
 
 interface TeamName {
@@ -30,47 +30,29 @@ interface GroupState {
   plateRunnerTrophy: boolean;
 }
 
-const SCHOOL_YEARS: SchoolYear[] = ["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"];
+const COLOURS: TournamentColour[] = ["Green", "Red", "Blue"];
 
 const GROUP_STYLE: Record<
-  SchoolYear,
+  TournamentColour,
   { border: string; bg: string; badge: string; accent: string }
 > = {
-  Y3: {
-    border: "border-blue-200",
-    bg: "bg-blue-50",
-    badge: "bg-blue-600 text-white",
-    accent: "text-blue-700",
-  },
-  Y4: {
+  Green: {
     border: "border-green-200",
     bg: "bg-green-50",
     badge: "bg-green-600 text-white",
     accent: "text-green-700",
   },
-  Y5: {
-    border: "border-amber-200",
-    bg: "bg-amber-50",
-    badge: "bg-amber-600 text-white",
-    accent: "text-amber-700",
-  },
-  Y6: {
+  Red: {
     border: "border-red-200",
     bg: "bg-red-50",
     badge: "bg-red-600 text-white",
     accent: "text-red-700",
   },
-  Y7: {
-    border: "border-purple-200",
-    bg: "bg-purple-50",
-    badge: "bg-purple-600 text-white",
-    accent: "text-purple-700",
-  },
-  Y8: {
-    border: "border-pink-200",
-    bg: "bg-pink-50",
-    badge: "bg-pink-600 text-white",
-    accent: "text-pink-700",
+  Blue: {
+    border: "border-blue-200",
+    bg: "bg-blue-50",
+    badge: "bg-blue-600 text-white",
+    accent: "text-blue-700",
   },
 };
 
@@ -79,13 +61,10 @@ const GROUP_STYLE: Record<
 export default function FinalsManager() {
   const supabase = getSupabaseBrowserClient();
 
-  const [groups, setGroups] = useState<Record<SchoolYear, GroupState>>({
-    Y3: emptyGroup(),
-    Y4: emptyGroup(),
-    Y5: emptyGroup(),
-    Y6: emptyGroup(),
-    Y7: emptyGroup(),
-    Y8: emptyGroup(),
+  const [groups, setGroups] = useState<Record<TournamentColour, GroupState>>({
+    Green: emptyGroup(),
+    Red: emptyGroup(),
+    Blue: emptyGroup(),
   });
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -114,18 +93,15 @@ export default function FinalsManager() {
     for (const t of teamsRes.data ?? []) names[t.id] = t.name;
     setTeamNames(names);
 
-    // Map tournaments by age group
-    const tournamentMap: Record<SchoolYear, Tournament | null> = {
-      Y3: null,
-      Y4: null,
-      Y5: null,
-      Y6: null,
-      Y7: null,
-      Y8: null,
+    // Map tournaments by colour
+    const tournamentMap: Record<TournamentColour, Tournament | null> = {
+      Green: null,
+      Red: null,
+      Blue: null,
     };
     for (const t of tournamentsRes.data ?? []) {
-      if (!tournamentMap[t.age_group_category]) {
-        tournamentMap[t.age_group_category] = t;
+      if (!tournamentMap[t.colour]) {
+        tournamentMap[t.colour] = t;
       }
     }
 
@@ -138,17 +114,14 @@ export default function FinalsManager() {
     }
 
     // Fetch standings for each group
-    const next: Record<SchoolYear, GroupState> = {
-      Y3: emptyGroup(),
-      Y4: emptyGroup(),
-      Y5: emptyGroup(),
-      Y6: emptyGroup(),
-      Y7: emptyGroup(),
-      Y8: emptyGroup(),
+    const next: Record<TournamentColour, GroupState> = {
+      Green: emptyGroup(),
+      Red: emptyGroup(),
+      Blue: emptyGroup(),
     };
 
     await Promise.all(
-      SCHOOL_YEARS.map(async (group) => {
+      COLOURS.map(async (group) => {
         const t = tournamentMap[group];
         next[group].tournament = t;
         if (!t) return;
@@ -172,7 +145,7 @@ export default function FinalsManager() {
 
   // ── Create final matches ─────────────────────────────────
 
-  async function createFinals(group: SchoolYear) {
+  async function createFinals(group: TournamentColour) {
     const g = groups[group];
     if (!g.tournament || g.standings.length < 2) return;
 
@@ -245,7 +218,7 @@ export default function FinalsManager() {
   // ── Trophy toggle ────────────────────────────────────────
 
   function toggleTrophy(
-    group: SchoolYear,
+    group: TournamentColour,
     key: "winnerTrophy" | "runnerTrophy" | "plateWinnerTrophy" | "plateRunnerTrophy"
   ) {
     setGroups((prev) => ({
@@ -287,7 +260,7 @@ export default function FinalsManager() {
 
       {/* Group cards */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {SCHOOL_YEARS.map((group) => {
+        {COLOURS.map((group) => {
           const g = groups[group];
           const s = GROUP_STYLE[group];
           const hasEnoughTeams = g.standings.length >= 2;

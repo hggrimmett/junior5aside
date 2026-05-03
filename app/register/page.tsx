@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
@@ -58,6 +58,20 @@ function Spinner() {
 
 export default function RegisterPage() {
   const supabase = getSupabaseBrowserClient();
+
+  const [deadline, setDeadline] = useState<Date | null>(null);
+  const [deadlinePassed, setDeadlinePassed] = useState(false);
+
+  useEffect(() => {
+    supabase.from("settings").select("value").eq("key", "registration_deadline").single()
+      .then(({ data }) => {
+        if (data) {
+          const d = new Date(data.value);
+          setDeadline(d);
+          setDeadlinePassed(new Date() > d);
+        }
+      });
+  }, [supabase]);
 
   const [role, setRole] = useState<Role>("parent");
   const [step, setStep] = useState<1 | 2>(1);
@@ -204,6 +218,19 @@ export default function RegisterPage() {
     );
   }
 
+  // ── Deadline checks ──────────────────────────────────────
+
+  if (deadlinePassed) return (
+    <Shell>
+      <div className="text-center py-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Registration Closed</h2>
+        <p className="text-sm text-gray-500">
+          Registration closed on {deadline?.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}. Contact the organisers if you need to register.
+        </p>
+      </div>
+    </Shell>
+  );
+
   // ── Shared styles ────────────────────────────────────────
 
   const inputClass =
@@ -217,6 +244,14 @@ export default function RegisterPage() {
 
   return (
     <Shell>
+      {/* Deadline notice */}
+      {deadline && !deadlinePassed && (
+        <p className="mb-5 text-center text-xs text-gray-400">
+          Registration closes on{" "}
+          {deadline.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}.
+        </p>
+      )}
+
       {/* Role toggle */}
       <div className="mb-8">
         <div className="flex rounded-xl bg-gray-100 p-1">

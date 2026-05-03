@@ -8,7 +8,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 interface Tournament {
   id: string;
   name: string;
-  age_group_category: string;
+  colour: string;
 }
 
 interface Team {
@@ -214,7 +214,7 @@ export default function FixtureGenerator() {
             <option value="">Select a tournament...</option>
             {tournaments.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.name} — {t.age_group_category}
+                {t.name} — {t.colour}
               </option>
             ))}
           </select>

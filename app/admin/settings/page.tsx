@@ -6,12 +6,12 @@ import { getLeagueTable, TeamStanding } from "@/lib/tournament-logic";
 
 // ── Types ──────────────────────────────────────────────────
 
-type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
+type TournamentColour = "Green" | "Red" | "Blue";
 
 interface Tournament {
   id: string;
   name: string;
-  age_group_category: SchoolYear;
+  colour: TournamentColour;
 }
 
 interface TeamRow {
@@ -38,7 +38,7 @@ interface Counts {
   matches: number;
 }
 
-const SCHOOL_YEARS: SchoolYear[] = ["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"];
+const COLOURS: TournamentColour[] = ["Green", "Red", "Blue"];
 
 // ── Page ───────────────────────────────────────────────────
 
@@ -151,15 +151,15 @@ export default function AdminSettingsPage() {
     for (const t of teamsData) teamNameMap[t.id] = t.name;
 
     // Build tournament lookup
-    const tournamentMap: Record<SchoolYear, Tournament | null> = { Y3: null, Y4: null, Y5: null, Y6: null, Y7: null, Y8: null };
+    const tournamentMap: Record<TournamentColour, Tournament | null> = { Green: null, Red: null, Blue: null };
     for (const t of tournaments) {
-      if (!tournamentMap[t.age_group_category]) tournamentMap[t.age_group_category] = t;
+      if (!tournamentMap[t.colour]) tournamentMap[t.colour] = t;
     }
 
     // Build standings per group
-    const standingsMap: Record<SchoolYear, TeamStanding[]> = { Y3: [], Y4: [], Y5: [], Y6: [], Y7: [], Y8: [] };
+    const standingsMap: Record<TournamentColour, TeamStanding[]> = { Green: [], Red: [], Blue: [] };
     await Promise.all(
-      SCHOOL_YEARS.map(async (group) => {
+      COLOURS.map(async (group) => {
         const t = tournamentMap[group];
         if (!t) return;
         try {
@@ -175,7 +175,7 @@ export default function AdminSettingsPage() {
     const lines: string[] = [];
 
     // League tables
-    for (const group of SCHOOL_YEARS) {
+    for (const group of COLOURS) {
       const standings = standingsMap[group];
       if (standings.length === 0) continue;
 

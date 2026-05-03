@@ -6,7 +6,7 @@ import { calculateMatchScore } from "@/lib/tournament-logic";
 
 // ── Types ──────────────────────────────────────────────────
 
-type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
+type TournamentColour = "Green" | "Red" | "Blue";
 
 interface Team {
   id: string;
@@ -29,18 +29,15 @@ interface Match {
 }
 
 interface MatchWithGroup extends Match {
-  ageGroup: SchoolYear;
+  ageGroup: TournamentColour;
 }
 
-const SCHOOL_YEARS: SchoolYear[] = ["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"];
+const COLOURS: TournamentColour[] = ["Green", "Red", "Blue"];
 
-const GROUP_STYLE: Record<SchoolYear, { badge: string; border: string }> = {
-  Y3: { badge: "bg-blue-100 text-blue-700", border: "border-l-blue-400" },
-  Y4: { badge: "bg-green-100 text-green-700", border: "border-l-green-400" },
-  Y5: { badge: "bg-amber-100 text-amber-700", border: "border-l-amber-400" },
-  Y6: { badge: "bg-red-100 text-red-700", border: "border-l-red-400" },
-  Y7: { badge: "bg-purple-100 text-purple-700", border: "border-l-purple-400" },
-  Y8: { badge: "bg-pink-100 text-pink-700", border: "border-l-pink-400" },
+const GROUP_STYLE: Record<TournamentColour, { badge: string; border: string }> = {
+  Green: { badge: "bg-green-100 text-green-700", border: "border-l-green-400" },
+  Red: { badge: "bg-red-100 text-red-700", border: "border-l-red-400" },
+  Blue: { badge: "bg-blue-100 text-blue-700", border: "border-l-blue-400" },
 };
 
 // ── Toast ──────────────────────────────────────────────────
@@ -66,7 +63,7 @@ export default function MatchResultsEntry({
 }: {
   tournamentId: string;
   /** Maps team ID → age group. Needed because matches don't store age group directly. */
-  ageGroupMap: Record<string, SchoolYear>;
+  ageGroupMap: Record<string, TournamentColour>;
 }) {
   const supabase = getSupabaseBrowserClient();
 
@@ -97,7 +94,7 @@ export default function MatchResultsEntry({
 
     const enriched: MatchWithGroup[] = (data ?? []).map((m) => ({
       ...m,
-      ageGroup: ageGroupMap[m.team_a_id] ?? "Y3",
+      ageGroup: ageGroupMap[m.team_a_id] ?? "Green",
     }));
 
     setMatches(enriched);
@@ -115,13 +112,10 @@ export default function MatchResultsEntry({
       ? matches
       : matches.filter((m) => !m.status);
 
-    const groups: Record<SchoolYear, MatchWithGroup[]> = {
-      Y3: [],
-      Y4: [],
-      Y5: [],
-      Y6: [],
-      Y7: [],
-      Y8: [],
+    const groups: Record<TournamentColour, MatchWithGroup[]> = {
+      Green: [],
+      Red: [],
+      Blue: [],
     };
 
     for (const m of filtered) {
@@ -165,7 +159,7 @@ export default function MatchResultsEntry({
       )}
 
       {/* Grouped lists */}
-      {SCHOOL_YEARS.map((group) => {
+      {COLOURS.map((group) => {
         const list = grouped[group];
         if (list.length === 0) return null;
 
@@ -223,7 +217,7 @@ export default function MatchResultsEntry({
       })}
 
       {/* Empty state */}
-      {SCHOOL_YEARS.every((g) => grouped[g].length === 0) && (
+      {COLOURS.every((g) => grouped[g].length === 0) && (
         <p className="py-12 text-center text-sm text-gray-400">
           {showCompleted
             ? "No matches found for this tournament."
