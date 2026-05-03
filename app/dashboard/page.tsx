@@ -56,10 +56,37 @@ export default function DashboardPage() {
 
   return (
     <div className="px-4 py-5 space-y-5">
-      {/* Section title */}
+      {/* Page title */}
       <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-        Competitions
+        Home
       </h2>
+
+      {/* My Players card */}
+      <Link href="/my-players">
+        <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform border-l-[4px] border-l-cricket">
+          <CardContent className="flex items-center justify-between px-5 py-4">
+            <div className="flex items-center gap-3">
+              <svg className="h-6 w-6 text-cricket" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <div>
+                <p className="font-extrabold tracking-tight text-foreground leading-tight">
+                  My Players
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  View your registered children
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-bold text-muted-foreground">View →</span>
+          </CardContent>
+        </Card>
+      </Link>
+
+      {/* Competitions section */}
+      <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground pt-1">
+        Competitions
+      </h3>
 
       {/* Tournament cards */}
       {loading ? (
