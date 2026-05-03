@@ -77,7 +77,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           {/* Logo / Title */}
-          <Link href="/dashboard" className="text-base font-extrabold text-white tracking-tight">
+          <Link href="/home" className="text-base font-extrabold text-white tracking-tight">
             Junior 5s
           </Link>
         </div>
