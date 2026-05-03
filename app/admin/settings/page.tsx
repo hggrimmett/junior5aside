@@ -3,6 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { getLeagueTable, TeamStanding } from "@/lib/tournament-logic";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -58,7 +68,10 @@ export default function AdminSettingsPage() {
   const fetchCounts = useCallback(async () => {
     const [playersRes, parentsRes, matchesRes] = await Promise.all([
       supabase.from("players").select("id", { count: "exact", head: true }),
-      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "parent"),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "parent"),
       supabase.from("matches").select("id", { count: "exact", head: true }),
     ]);
 
@@ -151,13 +164,21 @@ export default function AdminSettingsPage() {
     for (const t of teamsData) teamNameMap[t.id] = t.name;
 
     // Build tournament lookup
-    const tournamentMap: Record<TournamentColour, Tournament | null> = { Green: null, Red: null, Blue: null };
+    const tournamentMap: Record<TournamentColour, Tournament | null> = {
+      Green: null,
+      Red: null,
+      Blue: null,
+    };
     for (const t of tournaments) {
       if (!tournamentMap[t.colour]) tournamentMap[t.colour] = t;
     }
 
     // Build standings per group
-    const standingsMap: Record<TournamentColour, TeamStanding[]> = { Green: [], Red: [], Blue: [] };
+    const standingsMap: Record<TournamentColour, TeamStanding[]> = {
+      Green: [],
+      Red: [],
+      Blue: [],
+    };
     await Promise.all(
       COLOURS.map(async (group) => {
         const t = tournamentMap[group];
@@ -215,9 +236,7 @@ export default function AdminSettingsPage() {
             m.score_b,
             m.wickets_b,
             m.match_type,
-            m.scheduled_time
-              ? new Date(m.scheduled_time).toLocaleString()
-              : "",
+            m.scheduled_time ? new Date(m.scheduled_time).toLocaleString() : "",
           ].join(",")
         );
       }
@@ -249,28 +268,26 @@ export default function AdminSettingsPage() {
   // ── Render ───────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4]">
+    <div className="min-h-screen bg-muted/30">
       <div className="mx-auto max-w-3xl px-4 py-10 space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900">
-            Admin Settings
-          </h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <h1 className="text-2xl font-extrabold tracking-tight">Admin Settings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Database summary, data export, and GDPR tools.
           </p>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-            {error}
-          </div>
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="pt-4 pb-4 text-sm text-destructive">{error}</CardContent>
+          </Card>
         )}
 
         {/* ── Summary cards ───────────────────────────── */}
-        <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
+        <section className="space-y-3">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
             Database Summary
           </h2>
           <div className="grid grid-cols-3 gap-4">
@@ -281,92 +298,111 @@ export default function AdminSettingsPage() {
         </section>
 
         {/* ── Export ───────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-          <div>
-            <h2 className="text-base font-bold text-gray-900">
-              Export Master Sheet
-            </h2>
-            <p className="mt-0.5 text-sm text-gray-400">
+        <Card>
+          <CardHeader>
+            <CardTitle>Export Master Sheet</CardTitle>
+            <CardDescription>
               Download a CSV with all league tables and completed match results
               for club archives.
-            </p>
-          </div>
-
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-gray-800 disabled:opacity-50"
-          >
-            {exporting ? (
-              <>
-                <Spinner /> Generating...
-              </>
-            ) : (
-              <>
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" />
-                </svg>
-                Download CSV
-              </>
-            )}
-          </button>
-        </section>
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={exporting}
+              className="gap-2"
+            >
+              {exporting ? (
+                <>
+                  <Spinner />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3"
+                    />
+                  </svg>
+                  Download CSV
+                </>
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
 
         {/* ── GDPR Purge ──────────────────────────────── */}
-        <section className="rounded-2xl border-2 border-red-200 bg-white p-6 shadow-sm space-y-4">
-          <div>
-            <h2 className="text-base font-bold text-red-700">
+        <Card className="border-2 border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-destructive">
               Tournament Reset &amp; GDPR Purge
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
+            </CardTitle>
+            <CardDescription>
               Permanently deletes all player and non-superadmin profile data.
               Matches and teams are retained but anonymized (mentor links removed).
-            </p>
-          </div>
+            </CardDescription>
+          </CardHeader>
 
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-1">
-            <p className="font-semibold">This action will:</p>
-            <ul className="list-disc pl-5 text-xs text-amber-700 space-y-0.5">
-              <li>Delete all rows from the <strong>players</strong> table</li>
-              <li>Delete all <strong>parent</strong> and <strong>mentor</strong> profiles</li>
-              <li>Set <strong>mentor_id = null</strong> on all teams</li>
-              <li>Retain all matches, teams, and tournament structure</li>
-              <li>Admin profiles are <strong>not</strong> affected</li>
-            </ul>
-          </div>
+          <CardContent className="space-y-4">
+            <Separator />
 
-          {!purgeConfirm ? (
-            <button
-              onClick={() => setPurgeConfirm(true)}
-              className="rounded-xl border-2 border-red-300 px-5 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-50"
-            >
-              Begin Tournament Reset...
-            </button>
-          ) : (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handlePurge}
-                disabled={purging}
-                className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
-              >
-                {purging ? (
-                  <>
-                    <Spinner /> Purging...
-                  </>
-                ) : (
-                  "Confirm Purge"
-                )}
-              </button>
-              <button
-                onClick={() => setPurgeConfirm(false)}
-                disabled={purging}
-                className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+            {/* Warning list */}
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1.5">
+              <p className="text-sm font-semibold text-amber-800">This action will:</p>
+              <ul className="list-disc pl-5 text-xs text-amber-700 space-y-0.5">
+                <li>Delete all rows from the <strong>players</strong> table</li>
+                <li>Delete all <strong>parent</strong> and <strong>mentor</strong> profiles</li>
+                <li>Set <strong>mentor_id = null</strong> on all teams</li>
+                <li>Retain all matches, teams, and tournament structure</li>
+                <li>Admin profiles are <strong>not</strong> affected</li>
+              </ul>
             </div>
-          )}
-        </section>
+
+            {!purgeConfirm ? (
+              <Button
+                variant="outline"
+                onClick={() => setPurgeConfirm(true)}
+                className="border-destructive/50 text-destructive hover:bg-destructive/5 hover:text-destructive"
+              >
+                Begin Tournament Reset...
+              </Button>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="destructive"
+                  onClick={handlePurge}
+                  disabled={purging}
+                  className="gap-2"
+                >
+                  {purging ? (
+                    <>
+                      <Spinner />
+                      Purging...
+                    </>
+                  ) : (
+                    "Confirm Purge"
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setPurgeConfirm(false)}
+                  disabled={purging}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Toast */}
@@ -391,16 +427,18 @@ function StatCard({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm text-center">
-      {loading ? (
-        <div className="mx-auto h-8 w-12 animate-pulse rounded bg-gray-100" />
-      ) : (
-        <p className="text-3xl font-black text-gray-900">{value}</p>
-      )}
-      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
-        {label}
-      </p>
-    </div>
+    <Card>
+      <CardContent className="pt-6 pb-5 text-center">
+        {loading ? (
+          <div className="mx-auto h-9 w-14 animate-pulse rounded bg-muted" />
+        ) : (
+          <p className="text-4xl font-black tabular-nums">{value}</p>
+        )}
+        <p className="mt-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -412,8 +450,19 @@ function Spinner() {
       fill="none"
       viewBox="0 0 24 24"
     >
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   );
 }

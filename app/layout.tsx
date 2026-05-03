@@ -1,8 +1,9 @@
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
+import BottomNav from "@/components/nav/BottomNav";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
-      <body>{children}</body>
+      <body>
+        <main className="pb-20 md:pb-0">{children}</main>
+        <BottomNav />
+      </body>
     </html>
   );
 }

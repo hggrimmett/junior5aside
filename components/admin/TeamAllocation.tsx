@@ -12,6 +12,15 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -34,13 +43,46 @@ interface Team {
 
 const SCHOOL_YEARS: SchoolYear[] = ["Y3", "Y4", "Y5", "Y6", "Y7", "Y8"];
 
-const SCHOOL_YEAR_COLORS: Record<SchoolYear, { bg: string; ring: string; text: string }> = {
-  Y3: { bg: "bg-blue-50", ring: "ring-blue-300", text: "text-blue-700" },
-  Y4: { bg: "bg-green-50", ring: "ring-green-300", text: "text-green-700" },
-  Y5: { bg: "bg-amber-50", ring: "ring-amber-300", text: "text-amber-700" },
-  Y6: { bg: "bg-red-50", ring: "ring-red-300", text: "text-red-700" },
-  Y7: { bg: "bg-purple-50", ring: "ring-purple-300", text: "text-purple-700" },
-  Y8: { bg: "bg-pink-50", ring: "ring-pink-300", text: "text-pink-700" },
+const SCHOOL_YEAR_COLORS: Record<
+  SchoolYear,
+  { bg: string; ring: string; text: string; badgeClass: string }
+> = {
+  Y3: {
+    bg: "bg-blue-50",
+    ring: "ring-blue-300",
+    text: "text-blue-700",
+    badgeClass: "bg-blue-100 text-blue-700 border-blue-200",
+  },
+  Y4: {
+    bg: "bg-green-50",
+    ring: "ring-green-300",
+    text: "text-green-700",
+    badgeClass: "bg-green-100 text-green-700 border-green-200",
+  },
+  Y5: {
+    bg: "bg-amber-50",
+    ring: "ring-amber-300",
+    text: "text-amber-700",
+    badgeClass: "bg-amber-100 text-amber-700 border-amber-200",
+  },
+  Y6: {
+    bg: "bg-red-50",
+    ring: "ring-red-300",
+    text: "text-red-700",
+    badgeClass: "bg-red-100 text-red-700 border-red-200",
+  },
+  Y7: {
+    bg: "bg-purple-50",
+    ring: "ring-purple-300",
+    text: "text-purple-700",
+    badgeClass: "bg-purple-100 text-purple-700 border-purple-200",
+  },
+  Y8: {
+    bg: "bg-pink-50",
+    ring: "ring-pink-300",
+    text: "text-pink-700",
+    badgeClass: "bg-pink-100 text-pink-700 border-pink-200",
+  },
 };
 
 // ── Draggable Player Card ──────────────────────────────────
@@ -55,37 +97,45 @@ function PlayerCard({ player, overlay }: { player: Player; overlay?: boolean }) 
 
   if (overlay) {
     return (
-      <div
-        className={`rounded-lg border px-3 py-2 shadow-lg ${colors.bg} ring-2 ${colors.ring}`}
-      >
-        <p className="text-sm font-medium text-gray-800">{player.name}</p>
-        <span className={`text-xs font-semibold ${colors.text}`}>
-          {player.age_group}
-        </span>
-      </div>
+      <Card className={`shadow-lg ring-2 ${colors.ring} ${colors.bg}`}>
+        <CardContent className="px-3 py-2">
+          <p className="text-sm font-medium">{player.name}</p>
+          <Badge
+            variant="outline"
+            className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
+          >
+            {player.age_group}
+          </Badge>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div
+    <Card
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`cursor-grab rounded-lg border px-3 py-2 transition ${colors.bg} hover:ring-2 ${colors.ring} ${
+      className={`cursor-grab transition ${colors.bg} hover:ring-2 ${colors.ring} ${
         isDragging ? "opacity-30" : ""
       }`}
     >
-      <p className="text-sm font-medium text-gray-800">{player.name}</p>
-      <span className={`text-xs font-semibold ${colors.text}`}>
-        {player.age_group}
-      </span>
-    </div>
+      <CardContent className="px-3 py-2">
+        <p className="text-sm font-medium">{player.name}</p>
+        <Badge
+          variant="outline"
+          className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
+        >
+          {player.age_group}
+        </Badge>
+      </CardContent>
+    </Card>
   );
 }
 
 // ── Droppable Team Card ────────────────────────────────────
 
-function TeamCard({
+function TeamDropCard({
   team,
   players,
 }: {
@@ -95,31 +145,33 @@ function TeamCard({
   const { setNodeRef, isOver } = useDroppable({ id: team.id });
 
   return (
-    <div
+    <Card
       ref={setNodeRef}
-      className={`flex flex-col rounded-xl border-2 p-4 transition ${
+      className={`flex flex-col transition-all ${
         isOver
-          ? "border-blue-400 bg-blue-50/50"
-          : "border-gray-200 bg-white"
+          ? "ring-2 ring-blue-400 border-blue-300 bg-blue-50/40"
+          : ""
       }`}
     >
-      <h3 className="mb-3 text-sm font-bold text-gray-700">{team.name}</h3>
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-sm font-bold">{team.name}</CardTitle>
+      </CardHeader>
 
-      <div className="flex flex-1 flex-col gap-2">
+      <CardContent className="flex flex-1 flex-col gap-2 px-4 pb-4">
         {players.length === 0 && (
-          <p className="text-center text-xs text-gray-400 py-4">
+          <p className="py-4 text-center text-xs text-muted-foreground">
             Drop players here
           </p>
         )}
         {players.map((p) => (
           <PlayerCard key={p.id} player={p} />
         ))}
-      </div>
 
-      <p className="mt-3 text-right text-xs text-gray-400">
-        {players.length} player{players.length !== 1 && "s"}
-      </p>
-    </div>
+        <p className="mt-auto pt-2 text-right text-xs text-muted-foreground">
+          {players.length} player{players.length !== 1 && "s"}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -151,10 +203,7 @@ export default function TeamAllocation({
     setError(null);
 
     const [playersRes, teamsRes] = await Promise.all([
-      supabase
-        .from("players")
-        .select("*")
-        .returns<Player[]>(),
+      supabase.from("players").select("*").returns<Player[]>(),
       supabase
         .from("teams")
         .select("*")
@@ -184,10 +233,7 @@ export default function TeamAllocation({
   // ── Derived lists (filtered by age group) ────────────────
 
   const unassigned = useMemo(
-    () =>
-      players.filter(
-        (p) => p.team_id === null && p.age_group === ageFilter
-      ),
+    () => players.filter((p) => p.team_id === null && p.age_group === ageFilter),
     [players, ageFilter]
   );
 
@@ -265,7 +311,7 @@ export default function TeamAllocation({
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center text-gray-400">
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
         Loading...
       </div>
     );
@@ -273,41 +319,35 @@ export default function TeamAllocation({
 
   return (
     <div className="space-y-4">
-      {/* Header row: age filter + create button */}
-      <div className="flex items-center justify-between">
-        <div className="flex rounded-lg bg-gray-100 p-1">
-          {SCHOOL_YEARS.map((g) => {
-            const c = SCHOOL_YEAR_COLORS[g];
-            return (
-              <button
-                key={g}
-                onClick={() => setAgeFilter(g)}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-                  ageFilter === g
-                    ? `bg-white shadow ${c.text}`
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
+      {/* Header row: age filter tabs + create button */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          value={ageFilter}
+          onValueChange={(v) => setAgeFilter(v as SchoolYear)}
+        >
+          <TabsList>
+            {SCHOOL_YEARS.map((g) => (
+              <TabsTrigger key={g} value={g}>
                 {g}
-              </button>
-            );
-          })}
-        </div>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
-        <button
+        <Button
           onClick={quickCreateTeam}
           disabled={creating}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          size="sm"
         >
           {creating ? "Creating..." : "+ Quick-Create Team"}
-        </button>
+        </Button>
       </div>
 
       {/* Error banner */}
       {error && (
-        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
-          {error}
-        </div>
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="pt-3 pb-3 text-sm text-destructive">{error}</CardContent>
+        </Card>
       )}
 
       {/* DnD context wrapping both columns */}
@@ -317,38 +357,51 @@ export default function TeamAllocation({
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-6">
-          {/* Left: unassigned players */}
-          <div className="w-64 shrink-0">
-            <h2 className="mb-2 text-sm font-bold text-gray-600">
-              Unassigned Players
-              <span className="ml-1 text-gray-400">({unassigned.length})</span>
-            </h2>
-            <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
-              {unassigned.length === 0 && (
-                <p className="py-8 text-center text-xs text-gray-400">
-                  No unassigned {ageFilter} players
-                </p>
-              )}
-              {unassigned.map((p) => (
-                <PlayerCard key={p.id} player={p} />
-              ))}
-            </div>
+          {/* Left: unassigned players sidebar */}
+          <div className="w-60 shrink-0">
+            <Card className="border-dashed">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-bold">
+                  Unassigned
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {unassigned.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto px-4 pb-4">
+                {unassigned.length === 0 && (
+                  <p className="py-8 text-center text-xs text-muted-foreground">
+                    No unassigned {ageFilter} players
+                  </p>
+                )}
+                {unassigned.map((p) => (
+                  <PlayerCard key={p.id} player={p} />
+                ))}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Main: team grid */}
           <div className="flex-1">
-            <h2 className="mb-2 text-sm font-bold text-gray-600">
-              Teams
-              <span className="ml-1 text-gray-400">({teams.length})</span>
-            </h2>
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-bold">
+                Teams
+              </h2>
+              <Badge variant="secondary" className="text-xs">
+                {teams.length}
+              </Badge>
+            </div>
+
             {teams.length === 0 ? (
-              <div className="flex h-48 items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-sm text-gray-400">
-                No teams yet — create one above.
-              </div>
+              <Card className="border-dashed">
+                <CardContent className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                  No teams yet — create one above.
+                </CardContent>
+              </Card>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {teams.map((t) => (
-                  <TeamCard
+                  <TeamDropCard
                     key={t.id}
                     team={t}
                     players={teamPlayerMap.get(t.id) ?? []}
@@ -361,9 +414,7 @@ export default function TeamAllocation({
 
         {/* Drag overlay (follows pointer) */}
         <DragOverlay>
-          {activePlayer ? (
-            <PlayerCard player={activePlayer} overlay />
-          ) : null}
+          {activePlayer ? <PlayerCard player={activePlayer} overlay /> : null}
         </DragOverlay>
       </DndContext>
     </div>

@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -185,7 +194,7 @@ export default function MentorDashboard() {
       <Shell>
         <div className="flex h-[60vh] items-center justify-center">
           <svg
-            className="h-6 w-6 animate-spin text-gray-300"
+            className="h-6 w-6 animate-spin text-muted-foreground"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -201,7 +210,7 @@ export default function MentorDashboard() {
   if (error) {
     return (
       <Shell>
-        <div className="rounded-2xl bg-red-50 p-6 text-center text-lg text-red-600">
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center text-base text-destructive">
           {error}
         </div>
       </Shell>
@@ -212,14 +221,16 @@ export default function MentorDashboard() {
     return (
       <Shell>
         <Greeting name={profile?.full_name} />
-        <div className="mt-8 rounded-2xl border-2 border-dashed border-gray-200 py-20 text-center">
-          <p className="text-xl font-semibold text-gray-400">
-            No team assigned yet
-          </p>
-          <p className="mt-2 text-base text-gray-400">
-            Ask an admin to assign you.
-          </p>
-        </div>
+        <Card className="mt-8 border-2 border-dashed shadow-none">
+          <CardContent className="py-20 text-center">
+            <p className="text-xl font-semibold text-muted-foreground">
+              No team assigned yet
+            </p>
+            <p className="mt-2 text-base text-muted-foreground">
+              Ask an admin to assign you.
+            </p>
+          </CardContent>
+        </Card>
       </Shell>
     );
   }
@@ -231,11 +242,13 @@ export default function MentorDashboard() {
       {/* Header + refresh */}
       <div className="flex items-start justify-between">
         <Greeting name={profile?.full_name} />
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => loadData(false)}
           disabled={refreshing}
-          className="mt-1 rounded-xl p-2 text-gray-400 transition active:scale-95 active:bg-gray-100"
           aria-label="Refresh"
+          className="mt-0.5 h-10 w-10 rounded-xl text-muted-foreground active:scale-95"
         >
           <svg
             className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`}
@@ -250,170 +263,183 @@ export default function MentorDashboard() {
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
           </svg>
-        </button>
+        </Button>
       </div>
 
       {/* Team banner */}
-      <div className="mt-5 rounded-2xl bg-emerald-600 px-6 py-5 text-white shadow-lg">
-        <p className="text-xs font-bold uppercase tracking-widest opacity-60">
-          Your Team
-        </p>
-        <p className="mt-1 text-2xl font-black leading-tight">{team.name}</p>
-        <p className="mt-1 text-sm opacity-70">
-          {players.length} player{players.length !== 1 && "s"}
-        </p>
-      </div>
+      <Card className="mt-5 overflow-hidden shadow-lg border-0">
+        <div className="bg-gradient-to-r from-cricket to-midnight px-6 py-6 text-white">
+          <p className="text-xs font-bold uppercase tracking-widest opacity-60">
+            Your Team
+          </p>
+          <p className="mt-1.5 text-3xl font-black leading-tight">{team.name}</p>
+          <p className="mt-1 text-sm opacity-70">
+            {players.length} player{players.length !== 1 && "s"}
+          </p>
+        </div>
+      </Card>
 
       {/* ── Next match highlight ──────────────────────── */}
       {nextMatch && (
         <section className="mt-6">
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-400">
-            Next Up
-          </h2>
-          <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-6 py-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xl font-black text-gray-900">
-                vs{" "}
-                {nextMatch.team_a.id === team.id
-                  ? nextMatch.team_b.name
-                  : nextMatch.team_a.name}
-              </p>
+          <SectionLabel>Next Up</SectionLabel>
+          <Card className="border-2 border-amber-400 bg-amber-50/60 shadow-sm">
+            <CardContent className="px-6 py-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xl font-black text-foreground">
+                  vs{" "}
+                  {nextMatch.team_a.id === team.id
+                    ? nextMatch.team_b.name
+                    : nextMatch.team_a.name}
+                </p>
+                {nextMatch.scheduled_time && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    </span>
+                    <Badge className="bg-amber-500 text-white font-bold hover:bg-amber-500">
+                      {relativeTime(nextMatch.scheduled_time)}
+                    </Badge>
+                  </div>
+                )}
+              </div>
               {nextMatch.scheduled_time && (
-                <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
-                  {relativeTime(nextMatch.scheduled_time)}
-                </span>
+                <p className="mt-2 text-sm text-amber-800/70">
+                  {formatDate(nextMatch.scheduled_time)} &middot;{" "}
+                  {formatTime(nextMatch.scheduled_time)}
+                </p>
               )}
-            </div>
-            {nextMatch.scheduled_time && (
-              <p className="mt-2 text-base text-emerald-800/70">
-                {formatDate(nextMatch.scheduled_time)} &middot;{" "}
-                {formatTime(nextMatch.scheduled_time)}
-              </p>
-            )}
-          </div>
+            </CardContent>
+          </Card>
         </section>
       )}
 
       {/* ── Roster ────────────────────────────────────── */}
       <section className="mt-8">
-        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
-          Team Roster
-        </h2>
-
-        {players.length === 0 ? (
-          <p className="py-6 text-center text-base text-gray-400">
-            No players assigned yet.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {players.map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm border border-gray-100 active:bg-gray-50"
-              >
-                <span
-                  className={`h-3.5 w-3.5 shrink-0 rounded-full ${AGE_DOT[p.age_group]}`}
-                />
-                <span className="flex-1 text-lg font-semibold text-gray-900 truncate">
-                  {p.name}
-                </span>
-                <span className="text-sm font-medium text-gray-400">
-                  {p.age_group}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <SectionLabel>Team Roster</SectionLabel>
+        <Card className="shadow-sm">
+          <CardContent className="p-0">
+            {players.length === 0 ? (
+              <p className="py-10 text-center text-base text-muted-foreground">
+                No players assigned yet.
+              </p>
+            ) : (
+              <ul>
+                {players.map((p, idx) => (
+                  <li key={p.id}>
+                    <div className="flex items-center gap-4 px-5 py-4 active:bg-muted/50">
+                      <span
+                        className={`h-3 w-3 shrink-0 rounded-full ${AGE_DOT[p.age_group]}`}
+                      />
+                      <span className="flex-1 text-base font-semibold text-foreground truncate">
+                        {p.name}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className="bg-cricket-light text-cricket font-semibold shrink-0"
+                      >
+                        {p.age_group}
+                      </Badge>
+                    </div>
+                    {idx < players.length - 1 && <Separator />}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       {/* ── Upcoming matches ──────────────────────────── */}
       {upcoming.length > 1 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
-            Schedule
-          </h2>
-          <div className="space-y-2">
-            {upcoming.slice(1).map((m) => {
-              const opponent =
-                m.team_a.id === team.id ? m.team_b.name : m.team_a.name;
+          <SectionLabel>Schedule</SectionLabel>
+          <Card className="shadow-sm">
+            <CardContent className="p-0">
+              {upcoming.slice(1).map((m, idx) => {
+                const opponent =
+                  m.team_a.id === team.id ? m.team_b.name : m.team_a.name;
+                const rest = upcoming.slice(1);
 
-              return (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm border border-gray-100"
-                >
-                  <div className="min-w-0">
-                    <p className="text-lg font-bold text-gray-900 truncate">
-                      vs {opponent}
-                    </p>
-                    {m.scheduled_time && (
-                      <p className="mt-0.5 text-sm text-gray-400">
-                        {formatDate(m.scheduled_time)} &middot;{" "}
-                        {formatTime(m.scheduled_time)}
-                      </p>
-                    )}
+                return (
+                  <div key={m.id}>
+                    <div className="flex items-center justify-between gap-3 px-5 py-4">
+                      <div className="min-w-0">
+                        <p className="text-base font-bold text-foreground truncate">
+                          vs {opponent}
+                        </p>
+                        {m.scheduled_time && (
+                          <p className="mt-0.5 text-sm text-muted-foreground">
+                            {formatDate(m.scheduled_time)} &middot;{" "}
+                            {formatTime(m.scheduled_time)}
+                          </p>
+                        )}
+                      </div>
+                      {m.scheduled_time && (
+                        <Badge variant="secondary" className="shrink-0 font-semibold">
+                          {relativeTime(m.scheduled_time)}
+                        </Badge>
+                      )}
+                    </div>
+                    {idx < rest.length - 1 && <Separator />}
                   </div>
-                  {m.scheduled_time && (
-                    <span className="ml-3 shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-500">
-                      {relativeTime(m.scheduled_time)}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </CardContent>
+          </Card>
         </section>
       )}
 
       {/* ── Results ───────────────────────────────────── */}
       {completed.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
-            Results
-          </h2>
-          <div className="space-y-2">
-            {completed.map((m) => {
-              const isTeamA = m.team_a.id === team.id;
-              const opponent = isTeamA ? m.team_b.name : m.team_a.name;
-              const ours = isTeamA ? m.score_a : m.score_b;
-              const theirs = isTeamA ? m.score_b : m.score_a;
-              const oursW = isTeamA ? m.wickets_a : m.wickets_b;
-              const theirsW = isTeamA ? m.wickets_b : m.wickets_a;
-              const won = ours > theirs;
-              const draw = ours === theirs;
+          <SectionLabel>Results</SectionLabel>
+          <Card className="shadow-sm">
+            <CardContent className="p-0">
+              {completed.map((m, idx) => {
+                const isTeamA = m.team_a.id === team.id;
+                const opponent = isTeamA ? m.team_b.name : m.team_a.name;
+                const ours = isTeamA ? m.score_a : m.score_b;
+                const theirs = isTeamA ? m.score_b : m.score_a;
+                const oursW = isTeamA ? m.wickets_a : m.wickets_b;
+                const theirsW = isTeamA ? m.wickets_b : m.wickets_a;
+                const won = ours > theirs;
+                const draw = ours === theirs;
 
-              return (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm border border-gray-100"
-                >
-                  <div className="min-w-0">
-                    <p className="text-lg font-bold text-gray-900 truncate">
-                      vs {opponent}
-                    </p>
-                    <p className="mt-0.5 text-base tabular-nums text-gray-500">
-                      <span className="font-bold text-gray-800">
-                        {ours}/{oursW}
-                      </span>
-                      <span className="mx-2 text-gray-300">&ndash;</span>
-                      {theirs}/{theirsW}
-                    </p>
+                return (
+                  <div key={m.id}>
+                    <div className="flex items-center justify-between gap-3 px-5 py-4">
+                      <div className="min-w-0">
+                        <p className="text-base font-bold text-foreground truncate">
+                          vs {opponent}
+                        </p>
+                        <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
+                          <span className="font-bold text-foreground">
+                            {ours}/{oursW}
+                          </span>
+                          <span className="mx-2 text-muted-foreground/40">&ndash;</span>
+                          {theirs}/{theirsW}
+                        </p>
+                      </div>
+                      <Badge
+                        className={`shrink-0 font-bold ${
+                          won
+                            ? "bg-cricket text-white hover:bg-cricket"
+                            : draw
+                              ? "bg-secondary text-secondary-foreground hover:bg-secondary"
+                              : "bg-destructive text-destructive-foreground hover:bg-destructive"
+                        }`}
+                      >
+                        {won ? "Won" : draw ? "Draw" : "Lost"}
+                      </Badge>
+                    </div>
+                    {idx < completed.length - 1 && <Separator />}
                   </div>
-                  <span
-                    className={`ml-3 shrink-0 rounded-full px-3 py-1.5 text-xs font-black ${
-                      won
-                        ? "bg-emerald-100 text-emerald-700"
-                        : draw
-                          ? "bg-gray-100 text-gray-600"
-                          : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {won ? "Won" : draw ? "Draw" : "Lost"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </CardContent>
+          </Card>
         </section>
       )}
 
@@ -427,7 +453,7 @@ export default function MentorDashboard() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#f8f7f4]">
+    <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-lg px-4 pb-4 pt-6">{children}</div>
     </div>
   );
@@ -441,9 +467,19 @@ function Greeting({ name }: { name?: string }) {
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
-    <h1 className="text-2xl font-extrabold text-gray-900">
+    <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
       {greeting}
       {name ? `, ${name.split(" ")[0]}` : ""}
     </h1>
+  );
+}
+
+// ── SectionLabel ───────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+      {children}
+    </h2>
   );
 }

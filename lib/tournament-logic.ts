@@ -107,3 +107,78 @@ export async function getFinalists(
   const table = await getLeagueTable(supabase, tournamentId);
   return table.slice(0, 2);
 }
+
+// ── Team stats (for leading run scorer / top wicket taker) ────
+
+export interface TeamMatchStats {
+  teamId: string;
+  totalRuns: number;
+  totalWicketsTaken: number;
+}
+
+/**
+ * Returns per-team aggregate stats: total runs scored and total wickets taken.
+ * "Wickets taken" = wickets the opposing team lost (i.e. the other side's wickets column).
+ */
+export async function getTeamStats(
+  supabase: SupabaseClient,
+  tournamentId: string
+): Promise<TeamMatchStats[]> {
+  const { data: matches, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("tournament_id", tournamentId)
+    .eq("status", true)
+    .returns<Match[]>();
+
+  if (error) throw error;
+
+  const stats = new Map<string, TeamMatchStats>();
+
+  function getOrCreate(teamId: string): TeamMatchStats {
+    let entry = stats.get(teamId);
+    if (!entry) {
+      entry = { teamId, totalRuns: 0, totalWicketsTaken: 0 };
+      stats.set(teamId, entry);
+    }
+    return entry;
+  }
+
+  for (const match of matches ?? []) {
+    const a = getOrCreate(match.team_a_id);
+    const b = getOrCreate(match.team_b_id);
+
+    a.totalRuns += match.score_a;
+    b.totalRuns += match.score_b;
+
+    // Team A's wickets taken = Team B's wickets lost
+    a.totalWicketsTaken += match.wickets_b;
+    b.totalWicketsTaken += match.wickets_a;
+  }
+
+  return [...stats.values()];
+}
+
+/**
+ * Returns the team with the most runs scored in a tournament.
+ */
+export async function getLeadingRunScorer(
+  supabase: SupabaseClient,
+  tournamentId: string
+): Promise<TeamMatchStats | null> {
+  const stats = await getTeamStats(supabase, tournamentId);
+  if (stats.length === 0) return null;
+  return stats.sort((a, b) => b.totalRuns - a.totalRuns)[0];
+}
+
+/**
+ * Returns the team with the most wickets taken in a tournament.
+ */
+export async function getTopWicketTaker(
+  supabase: SupabaseClient,
+  tournamentId: string
+): Promise<TeamMatchStats | null> {
+  const stats = await getTeamStats(supabase, tournamentId);
+  if (stats.length === 0) return null;
+  return stats.sort((a, b) => b.totalWicketsTaken - a.totalWicketsTaken)[0];
+}

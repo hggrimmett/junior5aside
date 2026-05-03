@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { calculateMatchScore } from "@/lib/tournament-logic";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -41,36 +47,33 @@ interface ChildCard {
   lastMatch: MatchRow | null;
 }
 
-const AGE_ACCENT: Record<SchoolYear, { gradient: string; dot: string; badge: string }> = {
+const AGE_ACCENT: Record<
+  SchoolYear,
+  { gradient: string; badgeClass: string }
+> = {
   Y3: {
-    gradient: "from-blue-600 to-blue-500",
-    dot: "bg-blue-400",
-    badge: "bg-blue-100 text-blue-700",
+    gradient: "from-blue-700 to-blue-500",
+    badgeClass: "bg-white/20 text-white border-white/30",
   },
   Y4: {
-    gradient: "from-green-600 to-green-500",
-    dot: "bg-green-400",
-    badge: "bg-green-100 text-green-700",
+    gradient: "from-emerald-700 to-emerald-500",
+    badgeClass: "bg-white/20 text-white border-white/30",
   },
   Y5: {
     gradient: "from-amber-600 to-amber-500",
-    dot: "bg-amber-400",
-    badge: "bg-amber-100 text-amber-700",
+    badgeClass: "bg-white/20 text-white border-white/30",
   },
   Y6: {
-    gradient: "from-red-600 to-red-500",
-    dot: "bg-red-400",
-    badge: "bg-red-100 text-red-700",
+    gradient: "from-red-700 to-red-500",
+    badgeClass: "bg-white/20 text-white border-white/30",
   },
   Y7: {
-    gradient: "from-purple-600 to-purple-500",
-    dot: "bg-purple-400",
-    badge: "bg-purple-100 text-purple-700",
+    gradient: "from-purple-700 to-purple-500",
+    badgeClass: "bg-white/20 text-white border-white/30",
   },
   Y8: {
     gradient: "from-pink-600 to-pink-500",
-    dot: "bg-pink-400",
-    badge: "bg-pink-100 text-pink-700",
+    badgeClass: "bg-white/20 text-white border-white/30",
   },
 };
 
@@ -117,7 +120,9 @@ export default function ParentDashboard() {
     }
 
     // 3. Teams for assigned children
-    const teamIds = [...new Set(players.map((p) => p.team_id).filter(Boolean))] as string[];
+    const teamIds = [
+      ...new Set(players.map((p) => p.team_id).filter(Boolean)),
+    ] as string[];
 
     let teamsMap: Record<string, Team> = {};
     if (teamIds.length > 0) {
@@ -160,7 +165,9 @@ export default function ParentDashboard() {
     // 5. Build cards
     const result: ChildCard[] = players.map((player) => {
       const team = player.team_id ? teamsMap[player.team_id] ?? null : null;
-      const teamMatches = player.team_id ? matchesByTeam[player.team_id] ?? [] : [];
+      const teamMatches = player.team_id
+        ? matchesByTeam[player.team_id] ?? []
+        : [];
 
       const nextMatch = teamMatches.find((m) => !m.status) ?? null;
       const completedMatches = teamMatches.filter((m) => m.status);
@@ -202,13 +209,24 @@ export default function ParentDashboard() {
     return (
       <div className="flex h-48 items-center justify-center">
         <svg
-          className="h-6 w-6 animate-spin text-gray-300"
+          className="h-6 w-6 animate-spin text-muted-foreground"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
         >
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
         </svg>
       </div>
     );
@@ -216,22 +234,26 @@ export default function ParentDashboard() {
 
   if (error) {
     return (
-      <div className="rounded-2xl bg-red-50 p-6 text-center text-sm text-red-600">
-        {error}
-      </div>
+      <Card className="border-destructive/50 bg-destructive/5">
+        <CardContent className="p-6 text-center text-sm text-destructive">
+          {error}
+        </CardContent>
+      </Card>
     );
   }
 
   if (cards.length === 0) {
     return (
-      <div className="rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center">
-        <p className="text-lg font-semibold text-gray-400">
-          No children registered yet.
-        </p>
-        <p className="mt-1 text-sm text-gray-400">
-          Add your children from the registration page.
-        </p>
-      </div>
+      <Card className="border-dashed">
+        <CardContent className="py-16 text-center">
+          <p className="text-lg font-semibold text-muted-foreground">
+            No children registered yet.
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Add your children from the registration page.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -250,46 +272,50 @@ function HeroCard({ card }: { card: ChildCard }) {
   const { player, team, nextMatch, lastMatch } = card;
   const accent = AGE_ACCENT[player.age_group];
 
-  // Determine the "active" match to feature (upcoming > just-completed)
   const featuredMatch = nextMatch ?? lastMatch;
   const isLive = nextMatch !== null;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <Card className="overflow-hidden shadow-sm">
       {/* Gradient header */}
-      <div className={`bg-gradient-to-r ${accent.gradient} px-6 py-5 text-white`}>
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-xl font-black leading-tight">{player.name}</h3>
-            <p className="mt-1 text-sm font-medium opacity-80">
-              {team ? team.name : "Unassigned"}
-            </p>
+      <div className={`bg-gradient-to-r ${accent.gradient} px-6 py-5`}>
+        <CardHeader className="p-0">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-2xl font-black leading-tight text-white">
+                {player.name}
+              </h3>
+              <p className="mt-1 text-sm font-medium text-white/80">
+                {team ? team.name : "Unassigned"}
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className={`text-xs font-bold ${accent.badgeClass}`}
+            >
+              {player.age_group}
+            </Badge>
           </div>
-          <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur-sm">
-            {player.age_group}
-          </span>
-        </div>
+        </CardHeader>
       </div>
 
       {/* Body */}
-      <div className="px-6 py-5 space-y-4">
+      <CardContent className="px-6 py-5 space-y-4">
         {!team ? (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground">
             Not yet assigned to a team.
           </p>
         ) : !featuredMatch ? (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground">
             No matches scheduled yet.
           </p>
         ) : isLive ? (
-          /* ── Upcoming / Live match ────────────────────── */
           <UpcomingBlock match={nextMatch!} teamId={team.id} />
         ) : (
-          /* ── Last completed match ─────────────────────── */
           <ResultBlock match={lastMatch!} teamId={team.id} />
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -300,36 +326,37 @@ function UpcomingBlock({ match, teamId }: { match: MatchRow; teamId: string }) {
     match.team_a_id === teamId ? match.team_b.name : match.team_a.name;
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
-        </span>
-        <span className="text-xs font-black uppercase tracking-widest text-amber-700">
-          Next Match
-        </span>
-      </div>
+    <Card className="border-amber-300 bg-amber-50">
+      <CardContent className="px-5 py-4">
+        <div className="flex items-center gap-2 mb-2">
+          {/* Pulsing dot */}
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+          </span>
+          <span className="text-xs font-black uppercase tracking-widest text-amber-700">
+            Next Match
+          </span>
+        </div>
 
-      <p className="text-lg font-bold text-gray-900">
-        vs {opponent}
-      </p>
+        <p className="text-xl font-bold">vs {opponent}</p>
 
-      {match.scheduled_time && (
-        <p className="mt-1 text-sm text-amber-800/70">
-          {new Date(match.scheduled_time).toLocaleDateString(undefined, {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-          })}
-          {" at "}
-          {new Date(match.scheduled_time).toLocaleTimeString(undefined, {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-      )}
-    </div>
+        {match.scheduled_time && (
+          <p className="mt-1 text-sm text-amber-800/70">
+            {new Date(match.scheduled_time).toLocaleDateString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })}
+            {" at "}
+            {new Date(match.scheduled_time).toLocaleTimeString(undefined, {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -350,45 +377,43 @@ function ResultBlock({ match, teamId }: { match: MatchRow; teamId: string }) {
   const draw = ours === theirs;
   const resultLabel = won ? "Won" : draw ? "Draw" : "Lost";
 
-  const resultStyle = won
-    ? "border-emerald-200 bg-emerald-50"
+  const cardBorder = won
+    ? "border-emerald-300 bg-emerald-50"
     : draw
-      ? "border-gray-200 bg-gray-50"
-      : "border-red-200 bg-red-50";
+      ? "border-border bg-muted/30"
+      : "border-red-300 bg-red-50";
 
-  const badgeStyle = won
-    ? "bg-emerald-600 text-white"
+  const badgeClass = won
+    ? "bg-emerald-600 text-white hover:bg-emerald-600"
     : draw
-      ? "bg-gray-500 text-white"
-      : "bg-red-600 text-white";
+      ? "bg-slate-500 text-white hover:bg-slate-500"
+      : "bg-red-600 text-white hover:bg-red-600";
 
   return (
-    <div className={`rounded-xl border ${resultStyle} px-5 py-4`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-black uppercase tracking-widest text-gray-500">
-          Last Result
-        </span>
-        <span className={`rounded-full px-3 py-1 text-xs font-black ${badgeStyle}`}>
-          {resultLabel}
-        </span>
-      </div>
+    <Card className={`border ${cardBorder}`}>
+      <CardContent className="px-5 py-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+            Last Result
+          </span>
+          <Badge className={`font-bold ${badgeClass}`}>{resultLabel}</Badge>
+        </div>
 
-      <p className="text-lg font-bold text-gray-900">
-        vs {opponent}
-      </p>
+        <p className="text-xl font-bold">vs {opponent}</p>
 
-      <div className="mt-2 flex items-baseline gap-4">
-        <p className="text-base tabular-nums text-gray-700">
-          <span className="font-bold text-gray-900">{ours}/{oursW}</span>
-          <span className="mx-2 text-gray-300">&ndash;</span>
-          {theirs}/{theirsW}
-        </p>
-        <p className="text-xs text-gray-400">
-          Net: <span className="font-bold text-gray-600">{netOurs}</span>
-          {" vs "}
-          {netTheirs}
-        </p>
-      </div>
-    </div>
+        <div className="mt-3 flex items-baseline gap-4">
+          <p className="text-base tabular-nums">
+            <span className="font-bold text-xl">{ours}/{oursW}</span>
+            <span className="mx-2 text-muted-foreground/50">&ndash;</span>
+            <span className="text-muted-foreground">{theirs}/{theirsW}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Net: <span className="font-bold text-foreground">{netOurs}</span>
+            {" vs "}
+            {netTheirs}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

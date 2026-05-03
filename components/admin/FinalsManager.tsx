@@ -3,6 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { getLeagueTable, TeamStanding } from "@/lib/tournament-logic";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -34,25 +45,25 @@ const COLOURS: TournamentColour[] = ["Green", "Red", "Blue"];
 
 const GROUP_STYLE: Record<
   TournamentColour,
-  { border: string; bg: string; badge: string; accent: string }
+  { headerGradient: string; badge: string; accent: string; matchupAccent: string }
 > = {
   Green: {
-    border: "border-green-200",
-    bg: "bg-green-50",
-    badge: "bg-green-600 text-white",
-    accent: "text-green-700",
+    headerGradient: "from-emerald-700 to-emerald-500",
+    badge: "bg-white/20 text-white border-white/30",
+    accent: "text-emerald-700",
+    matchupAccent: "text-emerald-600",
   },
   Red: {
-    border: "border-red-200",
-    bg: "bg-red-50",
-    badge: "bg-red-600 text-white",
+    headerGradient: "from-red-700 to-red-500",
+    badge: "bg-white/20 text-white border-white/30",
     accent: "text-red-700",
+    matchupAccent: "text-red-600",
   },
   Blue: {
-    border: "border-blue-200",
-    bg: "bg-blue-50",
-    badge: "bg-blue-600 text-white",
+    headerGradient: "from-blue-800 to-blue-600",
+    badge: "bg-white/20 text-white border-white/30",
     accent: "text-blue-700",
+    matchupAccent: "text-blue-600",
   },
 };
 
@@ -237,7 +248,7 @@ export default function FinalsManager() {
 
   if (loading) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-gray-400">
+      <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
         Loading finals data...
       </div>
     );
@@ -246,19 +257,19 @@ export default function FinalsManager() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-bold text-gray-900">Finals Manager</h2>
-        <p className="mt-0.5 text-sm text-gray-400">
+        <h2 className="text-xl font-bold tracking-tight">Finals Manager</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Create final and plate-final matches from league standings.
         </p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
-        </div>
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="pt-4 pb-4 text-sm text-destructive">{error}</CardContent>
+        </Card>
       )}
 
-      {/* Group cards */}
+      {/* Group cards grid */}
       <div className="grid gap-6 lg:grid-cols-3">
         {COLOURS.map((group) => {
           const g = groups[group];
@@ -268,24 +279,32 @@ export default function FinalsManager() {
           const isBusy = busyGroup === group;
 
           return (
-            <div
-              key={group}
-              className={`rounded-2xl border-2 ${s.border} bg-white shadow-sm overflow-hidden`}
-            >
-              {/* Header */}
-              <div className={`${s.bg} px-5 py-4`}>
-                <span className={`inline-block rounded-full px-3 py-1 text-xs font-black ${s.badge}`}>
-                  {group}
-                </span>
+            <Card key={group} className="overflow-hidden shadow-sm">
+              {/* Coloured gradient header */}
+              <div className={`bg-gradient-to-br ${s.headerGradient} px-5 py-4`}>
+                <CardTitle className="text-white text-base">
+                  {group} Group
+                </CardTitle>
+                {g.tournament && (
+                  <p className="text-white/70 text-xs mt-1">{g.tournament.name}</p>
+                )}
+                {g.finalCreated && (
+                  <Badge
+                    variant="outline"
+                    className="mt-2 text-xs font-semibold border-white/30 bg-white/20 text-white"
+                  >
+                    Finals Created
+                  </Badge>
+                )}
               </div>
 
-              <div className="px-5 py-5 space-y-5">
+              <CardContent className="space-y-4 pt-5">
                 {!g.tournament ? (
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-muted-foreground">
                     No tournament found for this age group.
                   </p>
                 ) : !hasEnoughTeams ? (
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-muted-foreground">
                     Not enough completed matches to determine finalists.
                   </p>
                 ) : (
@@ -297,7 +316,7 @@ export default function FinalsManager() {
                       teamB={teamName(g.standings[1].teamId)}
                       rankA="1st"
                       rankB="2nd"
-                      accent={s.accent}
+                      accentClass={s.matchupAccent}
                     />
 
                     {/* Plate Final: 3rd vs 4th */}
@@ -308,74 +327,84 @@ export default function FinalsManager() {
                         teamB={teamName(g.standings[3].teamId)}
                         rankA="3rd"
                         rankB="4th"
-                        accent={s.accent}
+                        accentClass={s.matchupAccent}
                       />
                     ) : (
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-muted-foreground">
                         Not enough teams for a plate final.
                       </p>
                     )}
 
                     {/* Create button */}
                     {!g.finalCreated ? (
-                      <button
+                      <Button
                         onClick={() => createFinals(group)}
                         disabled={isBusy}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-2.5 text-sm font-bold text-white transition hover:bg-gray-800 disabled:opacity-50"
+                        className="w-full"
+                        variant="default"
                       >
                         {isBusy ? (
-                          <>
+                          <span className="flex items-center gap-2">
                             <Spinner />
                             Creating...
-                          </>
+                          </span>
                         ) : (
                           "Create Final Matches"
                         )}
-                      </button>
+                      </Button>
                     ) : (
-                      <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-center text-xs font-bold text-emerald-700">
-                        Final matches created
+                      <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-center">
+                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+                          Final matches created
+                        </Badge>
                       </div>
                     )}
 
                     {/* Trophy tracker */}
                     {g.finalCreated && (
-                      <div className="space-y-2 pt-1">
-                        <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                          Trophy Tracker
-                        </p>
+                      <>
+                        <Separator />
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                            Trophy Tracker
+                          </p>
 
-                        <TrophyCheck
-                          label={`Winners Trophy — ${teamName(g.standings[0].teamId)}`}
-                          checked={g.winnerTrophy}
-                          onChange={() => toggleTrophy(group, "winnerTrophy")}
-                        />
-                        <TrophyCheck
-                          label={`Runners-up Trophy — ${teamName(g.standings[1].teamId)}`}
-                          checked={g.runnerTrophy}
-                          onChange={() => toggleTrophy(group, "runnerTrophy")}
-                        />
+                          <TrophyCheck
+                            id={`${group}-winner`}
+                            label={`Winners — ${teamName(g.standings[0].teamId)}`}
+                            checked={g.winnerTrophy}
+                            onChange={() => toggleTrophy(group, "winnerTrophy")}
+                          />
+                          <TrophyCheck
+                            id={`${group}-runner`}
+                            label={`Runners-up — ${teamName(g.standings[1].teamId)}`}
+                            checked={g.runnerTrophy}
+                            onChange={() => toggleTrophy(group, "runnerTrophy")}
+                          />
 
-                        {hasPlateTeams && (
-                          <>
-                            <TrophyCheck
-                              label={`Plate Winners — ${teamName(g.standings[2].teamId)}`}
-                              checked={g.plateWinnerTrophy}
-                              onChange={() => toggleTrophy(group, "plateWinnerTrophy")}
-                            />
-                            <TrophyCheck
-                              label={`Plate Runners-up — ${teamName(g.standings[3].teamId)}`}
-                              checked={g.plateRunnerTrophy}
-                              onChange={() => toggleTrophy(group, "plateRunnerTrophy")}
-                            />
-                          </>
-                        )}
-                      </div>
+                          {hasPlateTeams && (
+                            <>
+                              <TrophyCheck
+                                id={`${group}-plate-winner`}
+                                label={`Plate Winners — ${teamName(g.standings[2].teamId)}`}
+                                checked={g.plateWinnerTrophy}
+                                onChange={() => toggleTrophy(group, "plateWinnerTrophy")}
+                              />
+                              <TrophyCheck
+                                id={`${group}-plate-runner`}
+                                label={`Plate Runners-up — ${teamName(g.standings[3].teamId)}`}
+                                checked={g.plateRunnerTrophy}
+                                onChange={() => toggleTrophy(group, "plateRunnerTrophy")}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </>
                     )}
                   </>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
@@ -398,64 +427,62 @@ function MatchupCard({
   teamB,
   rankA,
   rankB,
-  accent,
+  accentClass,
 }: {
   label: string;
   teamA: string;
   teamB: string;
   rankA: string;
   rankB: string;
-  accent: string;
+  accentClass: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-      <p className={`mb-3 text-xs font-black uppercase tracking-widest ${accent}`}>
-        {label}
-      </p>
-      <div className="flex items-center gap-3">
-        <div className="flex-1 text-center">
-          <span className="block text-xs text-gray-400">{rankA}</span>
-          <p className="mt-0.5 text-base font-bold text-gray-900 truncate">
-            {teamA}
-          </p>
+    <Card className="bg-muted/30">
+      <CardContent className="pt-4 pb-4 px-4">
+        <p className={`mb-3 text-xs font-black uppercase tracking-widest ${accentClass}`}>
+          {label}
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 text-center">
+            <span className="block text-xs text-muted-foreground">{rankA}</span>
+            <p className="mt-0.5 text-base font-bold truncate">{teamA}</p>
+          </div>
+          <span className="shrink-0 text-xs font-bold text-muted-foreground/50">VS</span>
+          <div className="flex-1 text-center">
+            <span className="block text-xs text-muted-foreground">{rankB}</span>
+            <p className="mt-0.5 text-base font-bold truncate">{teamB}</p>
+          </div>
         </div>
-        <span className="shrink-0 text-xs font-bold text-gray-300">VS</span>
-        <div className="flex-1 text-center">
-          <span className="block text-xs text-gray-400">{rankB}</span>
-          <p className="mt-0.5 text-base font-bold text-gray-900 truncate">
-            {teamB}
-          </p>
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function TrophyCheck({
+  id,
   label,
   checked,
   onChange,
 }: {
+  id: string;
   label: string;
   checked: boolean;
   onChange: () => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-gray-50 active:bg-gray-100">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="h-5 w-5 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-      />
-      <span
-        className={`text-sm ${
-          checked ? "font-semibold text-gray-900 line-through decoration-gray-300" : "text-gray-600"
+    <div className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-muted/50">
+      <Checkbox id={id} checked={checked} onCheckedChange={onChange} />
+      <Label
+        htmlFor={id}
+        className={`cursor-pointer text-sm ${
+          checked
+            ? "font-semibold line-through decoration-muted-foreground/50"
+            : "text-muted-foreground"
         }`}
       >
         {checked ? "\u{1F3C6} " : ""}{label}
-      </span>
-    </label>
+      </Label>
+    </div>
   );
 }
 
