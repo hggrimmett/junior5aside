@@ -1,15 +1,19 @@
 import "./globals.css";
-import { Geist } from "next/font/google";
+import { Inter, Montserrat } from "next/font/google";
 import { cn } from "@/lib/utils";
-import TopBar from "@/components/nav/TopBar";
-import BottomNav from "@/components/nav/BottomNav";
+import AppShell from "@/components/nav/AppShell";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  weight: ["700", "800", "900"],
+});
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Junior 5-a-Side Cricket",
+  title: "Junior 5-a-Side",
   description: "Youth cricket tournament management",
 };
 
@@ -19,11 +23,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
+    <html lang="en" className={cn(inter.variable, montserrat.variable)}>
       <body>
-        <TopBar />
-        <main className="pb-20 md:pb-0">{children}</main>
-        <BottomNav />
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

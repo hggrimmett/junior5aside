@@ -269,49 +269,35 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <div className="mx-auto max-w-3xl px-4 py-10 space-y-8">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Admin Settings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Database summary, data export, and GDPR tools.
-          </p>
-        </div>
-
+      <div className="mx-auto max-w-md px-4 py-6 space-y-5">
         {/* Error */}
         {error && (
-          <Card className="border-destructive/50 bg-destructive/5">
+          <Card className="rounded-2xl border-destructive/50 bg-destructive/5">
             <CardContent className="pt-4 pb-4 text-sm text-destructive">{error}</CardContent>
           </Card>
         )}
 
-        {/* ── Summary cards ───────────────────────────── */}
-        <section className="space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Database Summary
-          </h2>
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard label="Players" value={counts.players} loading={loading} />
-            <StatCard label="Parents" value={counts.parents} loading={loading} />
-            <StatCard label="Matches" value={counts.matches} loading={loading} />
-          </div>
-        </section>
+        {/* ── Stat cards — 3-col grid ─────────────────── */}
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard label="Players" value={counts.players} loading={loading} />
+          <StatCard label="Parents" value={counts.parents} loading={loading} />
+          <StatCard label="Matches" value={counts.matches} loading={loading} />
+        </div>
 
-        {/* ── Export ───────────────────────────────────── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Export Master Sheet</CardTitle>
-            <CardDescription>
+        {/* ── Export card ──────────────────────────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">Export Master Sheet</CardTitle>
+            <CardDescription className="text-sm">
               Download a CSV with all league tables and completed match results
               for club archives.
             </CardDescription>
           </CardHeader>
-          <CardFooter>
+          <CardFooter className="pt-0">
             <Button
-              variant="outline"
               onClick={handleExport}
               disabled={exporting}
-              className="gap-2"
+              className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold gap-2"
             >
               {exporting ? (
                 <>
@@ -340,15 +326,15 @@ export default function AdminSettingsPage() {
           </CardFooter>
         </Card>
 
-        {/* ── GDPR Purge ──────────────────────────────── */}
-        <Card className="border-2 border-destructive/40">
-          <CardHeader>
-            <CardTitle className="text-destructive">
+        {/* ── GDPR Purge card ──────────────────────────── */}
+        <Card className="rounded-2xl shadow-md border-2 border-destructive/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black text-destructive">
               Tournament Reset &amp; GDPR Purge
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm">
               Permanently deletes all player and non-superadmin profile data.
-              Matches and teams are retained but anonymized (mentor links removed).
+              Matches and teams are retained but anonymized.
             </CardDescription>
           </CardHeader>
 
@@ -356,9 +342,9 @@ export default function AdminSettingsPage() {
             <Separator />
 
             {/* Warning list */}
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1.5">
-              <p className="text-sm font-semibold text-amber-800">This action will:</p>
-              <ul className="list-disc pl-5 text-xs text-amber-700 space-y-0.5">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 space-y-2">
+              <p className="text-sm font-bold text-amber-800">This action will:</p>
+              <ul className="list-disc pl-5 text-xs text-amber-700 space-y-1 leading-relaxed">
                 <li>Delete all rows from the <strong>players</strong> table</li>
                 <li>Delete all <strong>parent</strong> and <strong>mentor</strong> profiles</li>
                 <li>Set <strong>mentor_id = null</strong> on all teams</li>
@@ -371,17 +357,17 @@ export default function AdminSettingsPage() {
               <Button
                 variant="outline"
                 onClick={() => setPurgeConfirm(true)}
-                className="border-destructive/50 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                className="h-12 w-full rounded-xl border-destructive/50 text-destructive hover:bg-destructive/5 hover:text-destructive font-bold"
               >
                 Begin Tournament Reset...
               </Button>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="space-y-2">
                 <Button
                   variant="destructive"
                   onClick={handlePurge}
                   disabled={purging}
-                  className="gap-2"
+                  className="h-12 w-full rounded-xl font-bold gap-2"
                 >
                   {purging ? (
                     <>
@@ -389,13 +375,14 @@ export default function AdminSettingsPage() {
                       Purging...
                     </>
                   ) : (
-                    "Confirm Purge"
+                    "Confirm Purge — Cannot Be Undone"
                   )}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => setPurgeConfirm(false)}
                   disabled={purging}
+                  className="h-12 w-full rounded-xl"
                 >
                   Cancel
                 </Button>
@@ -407,7 +394,7 @@ export default function AdminSettingsPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg">
           {toast}
         </div>
       )}
@@ -427,14 +414,14 @@ function StatCard({
   loading: boolean;
 }) {
   return (
-    <Card>
-      <CardContent className="pt-6 pb-5 text-center">
+    <Card className="rounded-2xl shadow-md">
+      <CardContent className="pt-5 pb-4 text-center px-2">
         {loading ? (
-          <div className="mx-auto h-9 w-14 animate-pulse rounded bg-muted" />
+          <div className="mx-auto h-9 w-10 animate-pulse rounded bg-muted" />
         ) : (
           <p className="text-4xl font-black tabular-nums">{value}</p>
         )}
-        <p className="mt-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="mt-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-tight">
           {label}
         </p>
       </CardContent>

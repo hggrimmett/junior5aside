@@ -86,28 +86,15 @@ const SCHOOL_YEAR_COLORS: Record<
   },
 };
 
-// ── Draggable Player Card ──────────────────────────────────
+// ── Circular draggable player avatar ──────────────────────
 
-function PlayerAvatar({ player, colors }: { player: Player; colors: typeof SCHOOL_YEAR_COLORS[SchoolYear] }) {
-  if (player.avatar_url) {
-    return (
-      <img
-        src={player.avatar_url}
-        alt={player.name}
-        className="h-8 w-8 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${colors.bg} ${colors.text} ring-1 ${colors.ring}`}
-    >
-      {player.name.charAt(0).toUpperCase()}
-    </span>
-  );
-}
-
-function PlayerCard({ player, overlay }: { player: Player; overlay?: boolean }) {
+function PlayerCircle({
+  player,
+  overlay,
+}: {
+  player: Player;
+  overlay?: boolean;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: player.id,
     data: player,
@@ -115,51 +102,55 @@ function PlayerCard({ player, overlay }: { player: Player; overlay?: boolean }) 
 
   const colors = SCHOOL_YEAR_COLORS[player.age_group];
 
+  const initials = player.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const inner = (
+    <div className="flex flex-col items-center gap-1">
+      {player.avatar_url ? (
+        <img
+          src={player.avatar_url}
+          alt={player.name}
+          className={`h-14 w-14 rounded-full object-cover ring-2 ${colors.ring} ${
+            isDragging ? "opacity-30" : ""
+          }`}
+        />
+      ) : (
+        <span
+          className={`flex h-14 w-14 items-center justify-center rounded-full text-sm font-black ${colors.bg} ${colors.text} ring-2 ${colors.ring} ${
+            isDragging ? "opacity-30" : ""
+          }`}
+        >
+          {initials}
+        </span>
+      )}
+      <span className="w-16 truncate text-center text-xs font-semibold leading-tight">
+        {player.name.split(" ")[0]}
+      </span>
+    </div>
+  );
+
   if (overlay) {
     return (
-      <Card className={`shadow-lg ring-2 ${colors.ring} ${colors.bg}`}>
-        <CardContent className="px-3 py-2">
-          <div className="flex items-center gap-2">
-            <PlayerAvatar player={player} colors={colors} />
-            <div>
-              <p className="text-sm font-medium">{player.name}</p>
-              <Badge
-                variant="outline"
-                className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
-              >
-                {player.age_group}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className={`opacity-90 drop-shadow-xl`}>
+        {inner}
+      </div>
     );
   }
 
   return (
-    <Card
+    <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`cursor-grab transition ${colors.bg} hover:ring-2 ${colors.ring} ${
-        isDragging ? "opacity-30" : ""
-      }`}
+      className="cursor-grab touch-none active:scale-110 transition-transform"
     >
-      <CardContent className="px-3 py-2">
-        <div className="flex items-center gap-2">
-          <PlayerAvatar player={player} colors={colors} />
-          <div>
-            <p className="text-sm font-medium">{player.name}</p>
-            <Badge
-              variant="outline"
-              className={`mt-0.5 text-xs font-semibold ${colors.badgeClass}`}
-            >
-              {player.age_group}
-            </Badge>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      {inner}
+    </div>
   );
 }
 
@@ -177,29 +168,31 @@ function TeamDropCard({
   return (
     <Card
       ref={setNodeRef}
-      className={`flex flex-col transition-all ${
-        isOver
-          ? "ring-2 ring-blue-400 border-blue-300 bg-blue-50/40"
-          : ""
+      className={`rounded-2xl shadow-md transition-all ${
+        isOver ? "ring-2 ring-[#114232] border-[#114232] bg-emerald-50/40" : ""
       }`}
     >
       <CardHeader className="pb-2 pt-4 px-4">
-        <CardTitle className="text-sm font-bold">{team.name}</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-black">{team.name}</CardTitle>
+          <span className="text-xs text-muted-foreground font-semibold">
+            {players.length} player{players.length !== 1 && "s"}
+          </span>
+        </div>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col gap-2 px-4 pb-4">
-        {players.length === 0 && (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+      <CardContent className="px-4 pb-5 min-h-[80px]">
+        {players.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">
             Drop players here
           </p>
+        ) : (
+          <div className="flex flex-wrap gap-3 pt-1">
+            {players.map((p) => (
+              <PlayerCircle key={p.id} player={p} />
+            ))}
+          </div>
         )}
-        {players.map((p) => (
-          <PlayerCard key={p.id} player={p} />
-        ))}
-
-        <p className="mt-auto pt-2 text-right text-xs text-muted-foreground">
-          {players.length} player{players.length !== 1 && "s"}
-        </p>
       </CardContent>
     </Card>
   );
@@ -341,110 +334,111 @@ export default function TeamAllocation({
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        Loading...
+      <div className="mx-auto max-w-md px-4">
+        <div className="flex h-64 items-center justify-center text-muted-foreground">
+          Loading...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header row: age filter tabs + create button */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-md px-4 space-y-5">
+      {/* Year filter tabs — full width, scrollable */}
+      <div className="overflow-x-auto -mx-4 px-4">
         <Tabs
           value={ageFilter}
           onValueChange={(v) => setAgeFilter(v as SchoolYear)}
         >
-          <TabsList>
+          <TabsList className="h-12 gap-1 w-full">
             {SCHOOL_YEARS.map((g) => (
-              <TabsTrigger key={g} value={g}>
+              <TabsTrigger
+                key={g}
+                value={g}
+                className="flex-1 h-10 text-sm font-bold"
+              >
                 {g}
               </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
-
-        <Button
-          onClick={quickCreateTeam}
-          disabled={creating}
-          size="sm"
-        >
-          {creating ? "Creating..." : "+ Quick-Create Team"}
-        </Button>
       </div>
 
       {/* Error banner */}
       {error && (
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className="rounded-2xl border-destructive/50 bg-destructive/5">
           <CardContent className="pt-3 pb-3 text-sm text-destructive">{error}</CardContent>
         </Card>
       )}
 
-      {/* DnD context wrapping both columns */}
+      {/* DnD context */}
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-6">
-          {/* Left: unassigned players sidebar */}
-          <div className="w-60 shrink-0">
-            <Card className="border-dashed">
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-sm font-bold">
-                  Unassigned
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    {unassigned.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto px-4 pb-4">
-                {unassigned.length === 0 && (
-                  <p className="py-8 text-center text-xs text-muted-foreground">
-                    No unassigned {ageFilter} players
-                  </p>
-                )}
-                {unassigned.map((p) => (
-                  <PlayerCard key={p.id} player={p} />
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main: team grid */}
-          <div className="flex-1">
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="text-sm font-bold">
-                Teams
-              </h2>
-              <Badge variant="secondary" className="text-xs">
-                {teams.length}
-              </Badge>
+        {/* Unassigned players pool */}
+        <Card className="rounded-2xl shadow-md border-dashed">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-black">
+                Unassigned{" "}
+                <Badge variant="secondary" className="ml-1.5 text-xs font-bold">
+                  {unassigned.length}
+                </Badge>
+              </CardTitle>
+              <Button
+                onClick={quickCreateTeam}
+                disabled={creating}
+                className="h-9 rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white text-xs font-bold px-3"
+              >
+                {creating ? "Creating..." : "+ New Team"}
+              </Button>
             </div>
-
-            {teams.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-                  No teams yet — create one above.
-                </CardContent>
-              </Card>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 min-h-[80px]">
+            {unassigned.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                No unassigned {ageFilter} players
+              </p>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {teams.map((t) => (
-                  <TeamDropCard
-                    key={t.id}
-                    team={t}
-                    players={teamPlayerMap.get(t.id) ?? []}
-                  />
+              <div className="flex flex-wrap gap-3">
+                {unassigned.map((p) => (
+                  <PlayerCircle key={p.id} player={p} />
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Team drop zones — stacked */}
+        {teams.length === 0 ? (
+          <Card className="rounded-2xl border-dashed">
+            <CardContent className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+              No teams yet — tap "+ New Team" above.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-sm font-black">Teams</span>
+              <Badge variant="secondary" className="text-xs font-bold">
+                {teams.length}
+              </Badge>
+            </div>
+            {teams.map((t) => (
+              <TeamDropCard
+                key={t.id}
+                team={t}
+                players={teamPlayerMap.get(t.id) ?? []}
+              />
+            ))}
           </div>
-        </div>
+        )}
 
         {/* Drag overlay (follows pointer) */}
         <DragOverlay>
-          {activePlayer ? <PlayerCard player={activePlayer} overlay /> : null}
+          {activePlayer ? <PlayerCircle player={activePlayer} overlay /> : null}
         </DragOverlay>
       </DndContext>
     </div>

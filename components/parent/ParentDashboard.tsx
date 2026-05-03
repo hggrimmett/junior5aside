@@ -47,36 +47,6 @@ interface ChildCard {
   lastMatch: MatchRow | null;
 }
 
-const AGE_ACCENT: Record<
-  SchoolYear,
-  { gradient: string; badgeClass: string }
-> = {
-  Y3: {
-    gradient: "from-blue-700 to-blue-500",
-    badgeClass: "bg-white/20 text-white border-white/30",
-  },
-  Y4: {
-    gradient: "from-emerald-700 to-emerald-500",
-    badgeClass: "bg-white/20 text-white border-white/30",
-  },
-  Y5: {
-    gradient: "from-amber-600 to-amber-500",
-    badgeClass: "bg-white/20 text-white border-white/30",
-  },
-  Y6: {
-    gradient: "from-red-700 to-red-500",
-    badgeClass: "bg-white/20 text-white border-white/30",
-  },
-  Y7: {
-    gradient: "from-purple-700 to-purple-500",
-    badgeClass: "bg-white/20 text-white border-white/30",
-  },
-  Y8: {
-    gradient: "from-pink-600 to-pink-500",
-    badgeClass: "bg-white/20 text-white border-white/30",
-  },
-};
-
 // ── Component ──────────────────────────────────────────────
 
 export default function ParentDashboard() {
@@ -234,7 +204,7 @@ export default function ParentDashboard() {
 
   if (error) {
     return (
-      <Card className="border-destructive/50 bg-destructive/5">
+      <Card className="rounded-2xl border-destructive/50 bg-destructive/5">
         <CardContent className="p-6 text-center text-sm text-destructive">
           {error}
         </CardContent>
@@ -244,7 +214,7 @@ export default function ParentDashboard() {
 
   if (cards.length === 0) {
     return (
-      <Card className="border-dashed">
+      <Card className="rounded-2xl border-dashed">
         <CardContent className="py-16 text-center">
           <p className="text-lg font-semibold text-muted-foreground">
             No children registered yet.
@@ -260,38 +230,37 @@ export default function ParentDashboard() {
   return (
     <div className="space-y-6">
       {cards.map((card) => (
-        <HeroCard key={card.player.id} card={card} />
+        <TradingCard key={card.player.id} card={card} />
       ))}
     </div>
   );
 }
 
-// ── Hero Card ──────────────────────────────────────────────
+// ── Trading Card ───────────────────────────────────────────
 
-function HeroCard({ card }: { card: ChildCard }) {
+function TradingCard({ card }: { card: ChildCard }) {
   const { player, team, nextMatch, lastMatch } = card;
-  const accent = AGE_ACCENT[player.age_group];
 
   const featuredMatch = nextMatch ?? lastMatch;
-  const isLive = nextMatch !== null;
+  const hasNext = nextMatch !== null;
 
   return (
-    <Card className="overflow-hidden shadow-sm">
-      {/* Gradient header */}
-      <div className={`bg-gradient-to-r ${accent.gradient} px-6 py-5`}>
+    <Card className="rounded-2xl shadow-md overflow-hidden">
+      {/* Header: bg-cricket, child name + school year badge */}
+      <div className="bg-cricket px-5 py-5">
         <CardHeader className="p-0">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-2xl font-black leading-tight text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-2xl font-black leading-tight text-white truncate">
                 {player.name}
               </h3>
-              <p className="mt-1 text-sm font-medium text-white/80">
+              <p className="mt-1 text-sm font-medium text-white/70 truncate">
                 {team ? team.name : "Unassigned"}
               </p>
             </div>
             <Badge
               variant="outline"
-              className={`text-xs font-bold ${accent.badgeClass}`}
+              className="shrink-0 border-white/40 bg-white/15 text-white text-xs font-bold rounded-full px-3"
             >
               {player.age_group}
             </Badge>
@@ -299,8 +268,8 @@ function HeroCard({ card }: { card: ChildCard }) {
         </CardHeader>
       </div>
 
-      {/* Body */}
-      <CardContent className="px-6 py-5 space-y-4">
+      {/* Body: match info */}
+      <CardContent className="px-5 py-4">
         {!team ? (
           <p className="text-sm text-muted-foreground">
             Not yet assigned to a team.
@@ -309,7 +278,7 @@ function HeroCard({ card }: { card: ChildCard }) {
           <p className="text-sm text-muted-foreground">
             No matches scheduled yet.
           </p>
-        ) : isLive ? (
+        ) : hasNext ? (
           <UpcomingBlock match={nextMatch!} teamId={team.id} />
         ) : (
           <ResultBlock match={lastMatch!} teamId={team.id} />
@@ -326,11 +295,11 @@ function UpcomingBlock({ match, teamId }: { match: MatchRow; teamId: string }) {
     match.team_a_id === teamId ? match.team_b.name : match.team_a.name;
 
   return (
-    <Card className="border-amber-300 bg-amber-50">
-      <CardContent className="px-5 py-4">
+    <Card className="rounded-xl border-l-4 border-l-amber-400 border-t-0 border-r-0 border-b-0 bg-amber-50/60 shadow-none">
+      <CardContent className="px-4 py-4">
         <div className="flex items-center gap-2 mb-2">
           {/* Pulsing dot */}
-          <span className="relative flex h-2.5 w-2.5">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
           </span>
@@ -339,7 +308,7 @@ function UpcomingBlock({ match, teamId }: { match: MatchRow; teamId: string }) {
           </span>
         </div>
 
-        <p className="text-xl font-bold">vs {opponent}</p>
+        <p className="text-xl font-bold text-foreground">vs {opponent}</p>
 
         {match.scheduled_time && (
           <p className="mt-1 text-sm text-amber-800/70">
@@ -377,11 +346,11 @@ function ResultBlock({ match, teamId }: { match: MatchRow; teamId: string }) {
   const draw = ours === theirs;
   const resultLabel = won ? "Won" : draw ? "Draw" : "Lost";
 
-  const cardBorder = won
-    ? "border-emerald-300 bg-emerald-50"
+  const cardBg = won
+    ? "border-l-emerald-400 bg-emerald-50/60"
     : draw
-      ? "border-border bg-muted/30"
-      : "border-red-300 bg-red-50";
+      ? "border-l-slate-400 bg-muted/30"
+      : "border-l-red-400 bg-red-50/60";
 
   const badgeClass = won
     ? "bg-emerald-600 text-white hover:bg-emerald-600"
@@ -390,22 +359,28 @@ function ResultBlock({ match, teamId }: { match: MatchRow; teamId: string }) {
       : "bg-red-600 text-white hover:bg-red-600";
 
   return (
-    <Card className={`border ${cardBorder}`}>
-      <CardContent className="px-5 py-4">
+    <Card className={`rounded-xl border-l-4 border-t-0 border-r-0 border-b-0 shadow-none ${cardBg}`}>
+      <CardContent className="px-4 py-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">
             Last Result
           </span>
-          <Badge className={`font-bold ${badgeClass}`}>{resultLabel}</Badge>
+          <Badge className={`font-bold rounded-full px-3 ${badgeClass}`}>
+            {resultLabel}
+          </Badge>
         </div>
 
-        <p className="text-xl font-bold">vs {opponent}</p>
+        <p className="text-xl font-bold text-foreground">vs {opponent}</p>
 
-        <div className="mt-3 flex items-baseline gap-4">
-          <p className="text-base tabular-nums">
-            <span className="font-bold text-xl">{ours}/{oursW}</span>
+        <div className="mt-2 flex items-baseline gap-4">
+          <p className="tabular-nums">
+            <span className="text-2xl font-black text-foreground">
+              {ours}/{oursW}
+            </span>
             <span className="mx-2 text-muted-foreground/50">&ndash;</span>
-            <span className="text-muted-foreground">{theirs}/{theirsW}</span>
+            <span className="text-base text-muted-foreground">
+              {theirs}/{theirsW}
+            </span>
           </p>
           <p className="text-xs text-muted-foreground">
             Net: <span className="font-bold text-foreground">{netOurs}</span>

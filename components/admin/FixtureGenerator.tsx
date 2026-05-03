@@ -23,6 +23,15 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
+function Spinner() {
+  return (
+    <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────
 
 interface Tournament {
@@ -201,24 +210,16 @@ export default function FixtureGenerator() {
   // ── Render ───────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div>
-        <h2 className="text-xl font-bold tracking-tight">Fixture Generator</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Round-robin schedule — every team plays each other once.
-        </p>
-      </div>
-
+    <div className="mx-auto max-w-md px-4 space-y-5">
       {/* Error */}
       {error && (
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className="rounded-2xl border-destructive/50 bg-destructive/5">
           <CardContent className="pt-4 pb-4 text-sm text-destructive">{error}</CardContent>
         </Card>
       )}
 
       {/* ── Configuration card ────────────────────────── */}
-      <Card>
+      <Card className="rounded-2xl shadow-md">
         <CardHeader>
           <CardTitle className="text-base">Configuration</CardTitle>
           <CardDescription>Select a tournament and set scheduling options.</CardDescription>
@@ -226,9 +227,11 @@ export default function FixtureGenerator() {
         <CardContent className="space-y-5">
           {/* Tournament selector */}
           <div className="space-y-1.5">
-            <Label htmlFor="tournament-select">Age Group / Tournament</Label>
+            <Label htmlFor="tournament-select" className="text-sm font-semibold">
+              Age Group / Tournament
+            </Label>
             <Select value={selectedId} onValueChange={(v) => setSelectedId(v ?? "")}>
-              <SelectTrigger id="tournament-select">
+              <SelectTrigger id="tournament-select" className="h-12">
                 <SelectValue placeholder="Select a tournament..." />
               </SelectTrigger>
               <SelectContent>
@@ -243,7 +246,7 @@ export default function FixtureGenerator() {
 
           {/* Team count summary */}
           {selectedId && (
-            <div className="rounded-lg bg-muted/60 px-4 py-3 text-sm">
+            <div className="rounded-xl bg-muted/60 px-4 py-3 text-sm">
               <span className="font-bold">{teams.length}</span> team
               {teams.length !== 1 && "s"} found
               {expectedMatches > 0 && (
@@ -257,19 +260,20 @@ export default function FixtureGenerator() {
 
           <Separator />
 
-          {/* Scheduling inputs */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* Scheduling inputs — stacked for mobile */}
+          <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="start-time">Start Time</Label>
+              <Label htmlFor="start-time" className="text-sm font-semibold">Start Time</Label>
               <Input
                 id="start-time"
                 type="datetime-local"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
+                className="h-12"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="match-duration">Duration (mins)</Label>
+              <Label htmlFor="match-duration" className="text-sm font-semibold">Duration (mins)</Label>
               <Input
                 id="match-duration"
                 type="number"
@@ -278,10 +282,11 @@ export default function FixtureGenerator() {
                 onChange={(e) =>
                   setMatchDuration(Math.max(1, Number(e.target.value) || 1))
                 }
+                className="h-12"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pitch-number">Pitch Number</Label>
+              <Label htmlFor="pitch-number" className="text-sm font-semibold">Pitch Number</Label>
               <Input
                 id="pitch-number"
                 type="number"
@@ -290,6 +295,7 @@ export default function FixtureGenerator() {
                 onChange={(e) =>
                   setPitchNumber(Math.max(1, Number(e.target.value) || 1))
                 }
+                className="h-12"
               />
             </div>
           </div>
@@ -298,7 +304,7 @@ export default function FixtureGenerator() {
           <Button
             onClick={handleGenerate}
             disabled={!selectedId || teams.length < 2}
-            className="w-full sm:w-auto"
+            className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold"
           >
             Generate Preview
           </Button>
@@ -309,7 +315,7 @@ export default function FixtureGenerator() {
       {previewing && fixtures.length > 0 && (
         <div className="space-y-4">
           {/* Warning banner */}
-          <Card className="border-amber-300 bg-amber-50">
+          <Card className="rounded-2xl border-amber-300 bg-amber-50">
             <CardContent className="flex items-start gap-3 pt-4 pb-4">
               <svg
                 className="mt-0.5 h-5 w-5 shrink-0 text-amber-500"
@@ -329,7 +335,7 @@ export default function FixtureGenerator() {
                   This will delete existing unplayed matches for this group
                 </p>
                 <p className="mt-0.5 text-xs text-amber-700">
-                  All pending matches (status&nbsp;=&nbsp;false) for{" "}
+                  All pending matches for{" "}
                   <span className="font-bold">{selectedTournament?.name}</span>{" "}
                   will be removed and replaced. Completed matches are not affected.
                 </p>
@@ -337,100 +343,59 @@ export default function FixtureGenerator() {
             </CardContent>
           </Card>
 
-          {/* Preview table */}
-          <Card>
-            <CardHeader className="pb-0">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-bold">
-                  Preview — {fixtures.length} match{fixtures.length !== 1 && "es"}
-                </CardTitle>
-                <span className="text-xs text-muted-foreground">Pitch {pitchNumber}</span>
-              </div>
-            </CardHeader>
+          {/* Preview header */}
+          <div className="flex items-center justify-between px-1">
+            <p className="text-sm font-bold">
+              Preview — {fixtures.length} match{fixtures.length !== 1 && "es"}
+            </p>
+            <span className="text-xs text-muted-foreground">Pitch {pitchNumber}</span>
+          </div>
 
-            <CardContent className="pt-4 px-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/40">
-                      <th className="w-12 py-2.5 pl-5 pr-1 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        #
-                      </th>
-                      <th className="py-2.5 px-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Team A
-                      </th>
-                      <th className="w-8 py-2.5 text-center text-xs text-muted-foreground/50">
-                        vs
-                      </th>
-                      <th className="py-2.5 px-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Team B
-                      </th>
-                      <th className="w-14 py-2.5 px-2 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Pitch
-                      </th>
-                      <th className="w-28 py-2.5 pl-2 pr-5 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Time
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fixtures.map((f, i) => (
-                      <tr
-                        key={i}
-                        className="border-b last:border-0 transition-colors hover:bg-muted/30"
-                      >
-                        <td className="py-3 pl-5 pr-1">
-                          <Badge
-                            variant="secondary"
-                            className="h-6 w-6 items-center justify-center rounded-full p-0 text-xs font-bold"
-                          >
-                            {i + 1}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-3 font-semibold">{f.teamA.name}</td>
-                        <td className="py-3 text-center text-muted-foreground/50">vs</td>
-                        <td className="py-3 px-3 font-semibold">{f.teamB.name}</td>
-                        <td className="py-3 px-2 text-center text-muted-foreground">
-                          {f.pitch}
-                        </td>
-                        <td className="py-3 pl-2 pr-5 text-right tabular-nums text-muted-foreground">
-                          {f.time.toLocaleTimeString(undefined, {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          {/* Match cards list */}
+          <div className="space-y-2.5">
+            {fixtures.map((f, i) => (
+              <Card key={i} className="rounded-2xl shadow-md">
+                <CardContent className="flex items-center gap-3 px-4 py-3">
+                  <Badge
+                    variant="secondary"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-0 text-xs font-black"
+                  >
+                    {i + 1}
+                  </Badge>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate">{f.teamA.name}</p>
+                    <p className="text-xs text-muted-foreground">vs {f.teamB.name}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold tabular-nums text-[#114232]">
+                      {f.time.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Pitch {f.pitch}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-              {/* Duration summary */}
-              <div className="border-t bg-muted/30 px-5 py-2.5 text-xs text-muted-foreground">
-                First match{" "}
-                <span className="font-medium text-foreground">
-                  {fixtures[0].time.toLocaleTimeString(undefined, {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {" "}&rarr; last match ends approx.{" "}
-                <span className="font-medium text-foreground">
-                  {new Date(
-                    fixtures[fixtures.length - 1].time.getTime() +
-                      matchDuration * 60_000
-                  ).toLocaleTimeString(undefined, {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
+          {/* Duration summary */}
+          <Card className="rounded-2xl bg-muted/40 border-0">
+            <CardContent className="px-4 py-3 text-xs text-muted-foreground">
+              First match{" "}
+              <span className="font-semibold text-foreground">
+                {fixtures[0].time.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              {" "}&rarr; last ends approx.{" "}
+              <span className="font-semibold text-foreground">
+                {new Date(
+                  fixtures[fixtures.length - 1].time.getTime() + matchDuration * 60_000
+                ).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              </span>
             </CardContent>
           </Card>
 
           {/* Save / success */}
           {done ? (
-            <Card className="border-emerald-200 bg-emerald-50">
+            <Card className="rounded-2xl border-emerald-200 bg-emerald-50">
               <CardContent className="py-4 text-center">
                 <p className="text-sm font-bold text-emerald-700">
                   {fixtures.length} fixtures saved successfully.
@@ -441,31 +406,11 @@ export default function FixtureGenerator() {
             <Button
               onClick={handleSave}
               disabled={saving}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-              size="lg"
+              className="h-14 w-full rounded-2xl bg-[#114232] hover:bg-[#1a5c44] text-white text-base font-bold shadow-md"
             >
               {saving ? (
                 <span className="flex items-center gap-2">
-                  <svg
-                    className="h-4 w-4 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
+                  <Spinner />
                   Saving...
                 </span>
               ) : (

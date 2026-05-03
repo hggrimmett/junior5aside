@@ -248,170 +248,164 @@ export default function FinalsManager() {
 
   if (loading) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-        Loading finals data...
+      <div className="mx-auto max-w-md px-4">
+        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+          Loading finals data...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold tracking-tight">Finals Manager</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Create final and plate-final matches from league standings.
-        </p>
-      </div>
-
+    <div className="mx-auto max-w-md px-4 space-y-5">
       {error && (
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className="rounded-2xl border-destructive/50 bg-destructive/5">
           <CardContent className="pt-4 pb-4 text-sm text-destructive">{error}</CardContent>
         </Card>
       )}
 
-      {/* Group cards grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {COLOURS.map((group) => {
-          const g = groups[group];
-          const s = GROUP_STYLE[group];
-          const hasEnoughTeams = g.standings.length >= 2;
-          const hasPlateTeams = g.standings.length >= 4;
-          const isBusy = busyGroup === group;
+      {/* 3 stacked cards — one per group */}
+      {COLOURS.map((group) => {
+        const g = groups[group];
+        const s = GROUP_STYLE[group];
+        const hasEnoughTeams = g.standings.length >= 2;
+        const hasPlateTeams = g.standings.length >= 4;
+        const isBusy = busyGroup === group;
 
-          return (
-            <Card key={group} className="overflow-hidden shadow-sm">
-              {/* Coloured gradient header */}
-              <div className={`bg-gradient-to-br ${s.headerGradient} px-5 py-4`}>
-                <CardTitle className="text-white text-base">
-                  {group} Group
-                </CardTitle>
-                {g.tournament && (
-                  <p className="text-white/70 text-xs mt-1">{g.tournament.name}</p>
-                )}
+        return (
+          <Card key={group} className="rounded-2xl shadow-md overflow-hidden">
+            {/* Coloured top bar */}
+            <div className={`bg-gradient-to-r ${s.headerGradient} px-5 py-4`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-black text-lg leading-tight">{group} Group</p>
+                  {g.tournament && (
+                    <p className="text-white/70 text-xs mt-0.5">{g.tournament.name}</p>
+                  )}
+                </div>
                 {g.finalCreated && (
                   <Badge
                     variant="outline"
-                    className="mt-2 text-xs font-semibold border-white/30 bg-white/20 text-white"
+                    className="border-white/30 bg-white/20 text-white font-semibold text-xs"
                   >
-                    Finals Created
+                    Created
                   </Badge>
                 )}
               </div>
+            </div>
 
-              <CardContent className="space-y-4 pt-5">
-                {!g.tournament ? (
-                  <p className="text-sm text-muted-foreground">
-                    No tournament found for this age group.
-                  </p>
-                ) : !hasEnoughTeams ? (
-                  <p className="text-sm text-muted-foreground">
-                    Not enough completed matches to determine finalists.
-                  </p>
-                ) : (
-                  <>
-                    {/* Final: 1st vs 2nd */}
+            <CardContent className="space-y-4 pt-5 pb-5">
+              {!g.tournament ? (
+                <p className="text-sm text-muted-foreground">
+                  No tournament found for this age group.
+                </p>
+              ) : !hasEnoughTeams ? (
+                <p className="text-sm text-muted-foreground">
+                  Not enough completed matches to determine finalists.
+                </p>
+              ) : (
+                <>
+                  {/* Final: 1st vs 2nd */}
+                  <MatchupCard
+                    label="Final"
+                    teamA={teamName(g.standings[0].teamId)}
+                    teamB={teamName(g.standings[1].teamId)}
+                    rankA="1st"
+                    rankB="2nd"
+                    accentClass={s.matchupAccent}
+                  />
+
+                  {/* Plate Final: 3rd vs 4th */}
+                  {hasPlateTeams ? (
                     <MatchupCard
-                      label="Final"
-                      teamA={teamName(g.standings[0].teamId)}
-                      teamB={teamName(g.standings[1].teamId)}
-                      rankA="1st"
-                      rankB="2nd"
+                      label="Plate Final"
+                      teamA={teamName(g.standings[2].teamId)}
+                      teamB={teamName(g.standings[3].teamId)}
+                      rankA="3rd"
+                      rankB="4th"
                       accentClass={s.matchupAccent}
                     />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Not enough teams for a plate final.
+                    </p>
+                  )}
 
-                    {/* Plate Final: 3rd vs 4th */}
-                    {hasPlateTeams ? (
-                      <MatchupCard
-                        label="Plate Final"
-                        teamA={teamName(g.standings[2].teamId)}
-                        teamB={teamName(g.standings[3].teamId)}
-                        rankA="3rd"
-                        rankB="4th"
-                        accentClass={s.matchupAccent}
-                      />
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        Not enough teams for a plate final.
-                      </p>
-                    )}
+                  {/* Create button */}
+                  {!g.finalCreated ? (
+                    <Button
+                      onClick={() => createFinals(group)}
+                      disabled={isBusy}
+                      className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold"
+                    >
+                      {isBusy ? (
+                        <span className="flex items-center gap-2">
+                          <Spinner />
+                          Creating...
+                        </span>
+                      ) : (
+                        "Create Final Matches"
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-center">
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+                        Final matches created
+                      </Badge>
+                    </div>
+                  )}
 
-                    {/* Create button */}
-                    {!g.finalCreated ? (
-                      <Button
-                        onClick={() => createFinals(group)}
-                        disabled={isBusy}
-                        className="w-full"
-                        variant="default"
-                      >
-                        {isBusy ? (
-                          <span className="flex items-center gap-2">
-                            <Spinner />
-                            Creating...
-                          </span>
-                        ) : (
-                          "Create Final Matches"
+                  {/* Trophy tracker */}
+                  {g.finalCreated && (
+                    <>
+                      <Separator />
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                          Trophy Tracker
+                        </p>
+
+                        <TrophyCheck
+                          id={`${group}-winner`}
+                          label={`Winners — ${teamName(g.standings[0].teamId)}`}
+                          checked={g.winnerTrophy}
+                          onChange={() => toggleTrophy(group, "winnerTrophy")}
+                        />
+                        <TrophyCheck
+                          id={`${group}-runner`}
+                          label={`Runners-up — ${teamName(g.standings[1].teamId)}`}
+                          checked={g.runnerTrophy}
+                          onChange={() => toggleTrophy(group, "runnerTrophy")}
+                        />
+
+                        {hasPlateTeams && (
+                          <>
+                            <TrophyCheck
+                              id={`${group}-plate-winner`}
+                              label={`Plate Winners — ${teamName(g.standings[2].teamId)}`}
+                              checked={g.plateWinnerTrophy}
+                              onChange={() => toggleTrophy(group, "plateWinnerTrophy")}
+                            />
+                            <TrophyCheck
+                              id={`${group}-plate-runner`}
+                              label={`Plate Runners-up — ${teamName(g.standings[3].teamId)}`}
+                              checked={g.plateRunnerTrophy}
+                              onChange={() => toggleTrophy(group, "plateRunnerTrophy")}
+                            />
+                          </>
                         )}
-                      </Button>
-                    ) : (
-                      <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-center">
-                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
-                          Final matches created
-                        </Badge>
                       </div>
-                    )}
-
-                    {/* Trophy tracker */}
-                    {g.finalCreated && (
-                      <>
-                        <Separator />
-                        <div className="space-y-1">
-                          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                            Trophy Tracker
-                          </p>
-
-                          <TrophyCheck
-                            id={`${group}-winner`}
-                            label={`Winners — ${teamName(g.standings[0].teamId)}`}
-                            checked={g.winnerTrophy}
-                            onChange={() => toggleTrophy(group, "winnerTrophy")}
-                          />
-                          <TrophyCheck
-                            id={`${group}-runner`}
-                            label={`Runners-up — ${teamName(g.standings[1].teamId)}`}
-                            checked={g.runnerTrophy}
-                            onChange={() => toggleTrophy(group, "runnerTrophy")}
-                          />
-
-                          {hasPlateTeams && (
-                            <>
-                              <TrophyCheck
-                                id={`${group}-plate-winner`}
-                                label={`Plate Winners — ${teamName(g.standings[2].teamId)}`}
-                                checked={g.plateWinnerTrophy}
-                                onChange={() => toggleTrophy(group, "plateWinnerTrophy")}
-                              />
-                              <TrophyCheck
-                                id={`${group}-plate-runner`}
-                                label={`Plate Runners-up — ${teamName(g.standings[3].teamId)}`}
-                                checked={g.plateRunnerTrophy}
-                                onChange={() => toggleTrophy(group, "plateRunnerTrophy")}
-                              />
-                            </>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg animate-slide-up">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg animate-slide-up">
           {toast}
         </div>
       )}
@@ -437,24 +431,22 @@ function MatchupCard({
   accentClass: string;
 }) {
   return (
-    <Card className="bg-muted/30">
-      <CardContent className="pt-4 pb-4 px-4">
-        <p className={`mb-3 text-xs font-black uppercase tracking-widest ${accentClass}`}>
-          {label}
-        </p>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 text-center">
-            <span className="block text-xs text-muted-foreground">{rankA}</span>
-            <p className="mt-0.5 text-base font-bold truncate">{teamA}</p>
-          </div>
-          <span className="shrink-0 text-xs font-bold text-muted-foreground/50">VS</span>
-          <div className="flex-1 text-center">
-            <span className="block text-xs text-muted-foreground">{rankB}</span>
-            <p className="mt-0.5 text-base font-bold truncate">{teamB}</p>
-          </div>
+    <div className="rounded-xl bg-muted/40 px-4 py-4">
+      <p className={`mb-3 text-xs font-black uppercase tracking-widest ${accentClass}`}>
+        {label}
+      </p>
+      <div className="flex items-center gap-3">
+        <div className="flex-1 text-center">
+          <span className="block text-xs text-muted-foreground font-semibold">{rankA}</span>
+          <p className="mt-0.5 text-base font-bold truncate">{teamA}</p>
         </div>
-      </CardContent>
-    </Card>
+        <span className="shrink-0 text-sm font-black text-muted-foreground/40">VS</span>
+        <div className="flex-1 text-center">
+          <span className="block text-xs text-muted-foreground font-semibold">{rankB}</span>
+          <p className="mt-0.5 text-base font-bold truncate">{teamB}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -470,11 +462,11 @@ function TrophyCheck({
   onChange: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-muted/50">
-      <Checkbox id={id} checked={checked} onCheckedChange={onChange} />
+    <div className="flex items-center gap-3 rounded-xl px-3 py-3 transition active:bg-muted/70 hover:bg-muted/50">
+      <Checkbox id={id} checked={checked} onCheckedChange={onChange} className="h-5 w-5" />
       <Label
         htmlFor={id}
-        className={`cursor-pointer text-sm ${
+        className={`cursor-pointer text-sm leading-snug ${
           checked
             ? "font-semibold line-through decoration-muted-foreground/50"
             : "text-muted-foreground"

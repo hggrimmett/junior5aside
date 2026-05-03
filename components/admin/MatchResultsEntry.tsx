@@ -6,13 +6,10 @@ import { calculateMatchScore } from "@/lib/tournament-logic";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -75,9 +72,20 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   }, [onDone]);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-slide-up rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg">
+    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-slide-up rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg">
       {message}
     </div>
+  );
+}
+
+// ── Spinner ────────────────────────────────────────────────
+
+function Spinner() {
+  return (
+    <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
   );
 }
 
@@ -154,37 +162,38 @@ export default function MatchResultsEntry({
 
   if (loading) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-        Loading matches...
+      <div className="mx-auto max-w-md px-4">
+        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+          Loading matches...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Match Results</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Tap a match to enter or update scores.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="show-completed"
-            checked={showCompleted}
-            onCheckedChange={(v) => setShowCompleted(Boolean(v))}
+    <div className="mx-auto max-w-md px-4 space-y-5">
+      {/* Show completed toggle — no page header, content first */}
+      <div className="flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-3">
+        <span className="text-sm font-semibold text-foreground">Show Completed</span>
+        <button
+          role="switch"
+          aria-checked={showCompleted}
+          onClick={() => setShowCompleted((v) => !v)}
+          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            showCompleted ? "bg-[#114232]" : "bg-input"
+          }`}
+        >
+          <span
+            className={`pointer-events-none block h-6 w-6 rounded-full bg-white shadow-lg ring-0 transition-transform ${
+              showCompleted ? "translate-x-5" : "translate-x-0"
+            }`}
           />
-          <Label htmlFor="show-completed" className="cursor-pointer text-sm">
-            Show Completed
-          </Label>
-        </div>
+        </button>
       </div>
 
       {error && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="pt-4 text-sm text-destructive">{error}</CardContent>
+        <Card className="rounded-2xl border-destructive/50 bg-destructive/5">
+          <CardContent className="pt-4 pb-4 text-sm text-destructive">{error}</CardContent>
         </Card>
       )}
 
@@ -195,8 +204,7 @@ export default function MatchResultsEntry({
 
         return (
           <section key={group} className="space-y-2">
-            {/* Group header */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 px-1">
               <Badge
                 variant="outline"
                 className={`text-xs font-bold px-2.5 py-0.5 ${GROUP_BADGE[group]}`}
@@ -208,22 +216,21 @@ export default function MatchResultsEntry({
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {list.map((m) => (
                 <Card
                   key={m.id}
                   onClick={() => setSelected(m)}
-                  className={`cursor-pointer border-l-4 ${GROUP_BORDER[group]} transition-all hover:shadow-md hover:-translate-y-px active:translate-y-0`}
+                  className={`cursor-pointer rounded-2xl shadow-md border-l-4 ${GROUP_BORDER[group]} active:scale-[0.98] transition-transform`}
                 >
-                  <CardContent className="flex items-center justify-between py-3 px-4">
+                  <CardContent className="flex items-center justify-between py-4 px-4">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">
-                        {m.team_a.name}{" "}
-                        <span className="font-normal text-muted-foreground">vs</span>{" "}
-                        {m.team_b.name}
+                      <p className="text-base font-bold truncate">{m.team_a.name}</p>
+                      <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                        vs {m.team_b.name}
                       </p>
                       {m.scheduled_time && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {new Date(m.scheduled_time).toLocaleString()}
                         </p>
                       )}
@@ -231,13 +238,13 @@ export default function MatchResultsEntry({
 
                     <div className="ml-4 shrink-0">
                       {m.status ? (
-                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-bold hover:bg-emerald-100">
+                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-bold hover:bg-emerald-100 text-sm px-3 py-1">
                           {m.score_a}/{m.wickets_a} – {m.score_b}/{m.wickets_b}
                         </Badge>
                       ) : (
                         <Badge
                           variant="outline"
-                          className="bg-amber-50 text-amber-700 border-amber-300 font-semibold"
+                          className="bg-amber-50 text-amber-700 border-amber-300 font-semibold text-sm px-3 py-1"
                         >
                           Pending
                         </Badge>
@@ -253,12 +260,12 @@ export default function MatchResultsEntry({
 
       {/* Empty state */}
       {COLOURS.every((g) => grouped[g].length === 0) && (
-        <Card className="border-dashed">
+        <Card className="rounded-2xl border-dashed">
           <CardContent className="py-16 text-center">
             <p className="text-sm text-muted-foreground">
               {showCompleted
                 ? "No matches found for this tournament."
-                : "No pending matches. Toggle 'Show Completed' to see results."}
+                : "No pending matches. Toggle Show Completed to see results."}
             </p>
           </CardContent>
         </Card>
@@ -282,6 +289,29 @@ export default function MatchResultsEntry({
   );
 }
 
+// ── Step button (big circular +/- for score entry) ─────────
+
+function StepButton({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#114232] text-white text-2xl font-black shadow-md active:scale-95 transition-transform disabled:opacity-30"
+    >
+      {label}
+    </button>
+  );
+}
+
 // ── Entry Modal ────────────────────────────────────────────
 
 function EntryModal({
@@ -295,10 +325,10 @@ function EntryModal({
   onClose: () => void;
   onSaved: (msg: string) => void;
 }) {
-  const [runsA, setRunsA] = useState("");
-  const [wicketsA, setWicketsA] = useState("");
-  const [runsB, setRunsB] = useState("");
-  const [wicketsB, setWicketsB] = useState("");
+  const [runsA, setRunsA] = useState(0);
+  const [wicketsA, setWicketsA] = useState(0);
+  const [runsB, setRunsB] = useState(0);
+  const [wicketsB, setWicketsB] = useState(0);
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -306,10 +336,10 @@ function EntryModal({
   // Sync fields when match changes
   useEffect(() => {
     if (match) {
-      setRunsA(String(match.score_a));
-      setWicketsA(String(match.wickets_a));
-      setRunsB(String(match.score_b));
-      setWicketsB(String(match.wickets_b));
+      setRunsA(match.score_a);
+      setWicketsA(match.wickets_a);
+      setRunsB(match.score_b);
+      setWicketsB(match.wickets_b);
       setComplete(match.status);
       setError(null);
     }
@@ -317,13 +347,8 @@ function EntryModal({
 
   if (!match) return null;
 
-  const numRunsA = Number(runsA) || 0;
-  const numWicketsA = Number(wicketsA) || 0;
-  const numRunsB = Number(runsB) || 0;
-  const numWicketsB = Number(wicketsB) || 0;
-
-  const netScoreA = calculateMatchScore(numRunsA, numWicketsA);
-  const netScoreB = calculateMatchScore(numRunsB, numWicketsB);
+  const netScoreA = calculateMatchScore(runsA, wicketsA);
+  const netScoreB = calculateMatchScore(runsB, wicketsB);
 
   async function handleSave() {
     setSaving(true);
@@ -332,10 +357,10 @@ function EntryModal({
     const { error: updateErr } = await supabase
       .from("matches")
       .update({
-        score_a: numRunsA,
-        wickets_a: numWicketsA,
-        score_b: numRunsB,
-        wickets_b: numWicketsB,
+        score_a: runsA,
+        wickets_a: wicketsA,
+        score_b: runsB,
+        wickets_b: wicketsB,
         status: complete,
       })
       .eq("id", match!.id);
@@ -355,125 +380,150 @@ function EntryModal({
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Enter Match Result</DialogTitle>
-          <DialogDescription>
-            {match.team_a.name} vs {match.team_b.name}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="w-full max-w-md rounded-2xl p-0 gap-0 overflow-hidden">
+        {/* Coloured header bar */}
+        <div className="bg-[#114232] px-6 pt-6 pb-5">
+          <DialogHeader>
+            <DialogTitle className="text-white text-lg font-black">
+              {match.team_a.name}
+            </DialogTitle>
+            <DialogDescription className="text-white/70 text-base font-semibold mt-0.5">
+              vs {match.team_b.name}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        {error && (
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="pt-3 pb-3 text-sm text-destructive">{error}</CardContent>
-          </Card>
-        )}
+        <div className="px-5 py-5 space-y-6">
+          {error && (
+            <div className="rounded-xl border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
 
-        {/* Two-column score grid */}
-        <div className="grid grid-cols-2 gap-6 py-2">
-          {/* Team A */}
-          <div className="space-y-3">
-            <p className="text-center text-sm font-bold">{match.team_a.name}</p>
+          {/* ── Team A ── */}
+          <div className="space-y-4">
+            <p className="text-center text-base font-black tracking-tight">{match.team_a.name}</p>
 
-            <div className="space-y-1">
-              <Label className="block text-center text-xs text-muted-foreground">Runs</Label>
-              <Input
-                type="number"
-                min={0}
-                value={runsA}
-                onChange={(e) => setRunsA(e.target.value)}
-                className="text-center text-2xl font-bold py-4 h-auto"
-              />
+            {/* Runs A */}
+            <div className="space-y-1.5">
+              <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Runs
+              </p>
+              <div className="flex items-center justify-between gap-3">
+                <StepButton label="-" onClick={() => setRunsA((v) => Math.max(0, v - 1))} />
+                <span className="flex-1 text-center text-4xl font-black tabular-nums">{runsA}</span>
+                <StepButton label="+" onClick={() => setRunsA((v) => v + 1)} />
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="block text-center text-xs text-muted-foreground">Wickets</Label>
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={wicketsA}
-                onChange={(e) => setWicketsA(e.target.value)}
-                className="text-center text-2xl font-bold py-4 h-auto"
-              />
+            {/* Wickets A */}
+            <div className="space-y-1.5">
+              <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Wickets
+              </p>
+              <div className="flex items-center justify-between gap-3">
+                <StepButton label="-" onClick={() => setWicketsA((v) => Math.max(0, v - 1))} />
+                <span className="flex-1 text-center text-4xl font-black tabular-nums">{wicketsA}</span>
+                <StepButton label="+" onClick={() => setWicketsA((v) => Math.min(10, v + 1))} />
+              </div>
             </div>
 
-            <div className="rounded-lg bg-muted/60 py-3 text-center">
-              <p className="text-xs text-muted-foreground">Net Score</p>
-              <p className="text-2xl font-black text-emerald-600 mt-0.5">{netScoreA}</p>
+            {/* Net score A */}
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 py-3 text-center">
+              <p className="text-xs text-emerald-700 font-semibold uppercase tracking-wider">Net Score</p>
+              <p className="text-3xl font-black text-emerald-700 mt-0.5 tabular-nums">{netScoreA}</p>
             </div>
           </div>
 
-          {/* Team B */}
-          <div className="space-y-3">
-            <p className="text-center text-sm font-bold">{match.team_b.name}</p>
+          <Separator />
 
-            <div className="space-y-1">
-              <Label className="block text-center text-xs text-muted-foreground">Runs</Label>
-              <Input
-                type="number"
-                min={0}
-                value={runsB}
-                onChange={(e) => setRunsB(e.target.value)}
-                className="text-center text-2xl font-bold py-4 h-auto"
-              />
+          {/* ── Team B ── */}
+          <div className="space-y-4">
+            <p className="text-center text-base font-black tracking-tight">{match.team_b.name}</p>
+
+            {/* Runs B */}
+            <div className="space-y-1.5">
+              <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Runs
+              </p>
+              <div className="flex items-center justify-between gap-3">
+                <StepButton label="-" onClick={() => setRunsB((v) => Math.max(0, v - 1))} />
+                <span className="flex-1 text-center text-4xl font-black tabular-nums">{runsB}</span>
+                <StepButton label="+" onClick={() => setRunsB((v) => v + 1)} />
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="block text-center text-xs text-muted-foreground">Wickets</Label>
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={wicketsB}
-                onChange={(e) => setWicketsB(e.target.value)}
-                className="text-center text-2xl font-bold py-4 h-auto"
-              />
+            {/* Wickets B */}
+            <div className="space-y-1.5">
+              <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Wickets
+              </p>
+              <div className="flex items-center justify-between gap-3">
+                <StepButton label="-" onClick={() => setWicketsB((v) => Math.max(0, v - 1))} />
+                <span className="flex-1 text-center text-4xl font-black tabular-nums">{wicketsB}</span>
+                <StepButton label="+" onClick={() => setWicketsB((v) => Math.min(10, v + 1))} />
+              </div>
             </div>
 
-            <div className="rounded-lg bg-muted/60 py-3 text-center">
-              <p className="text-xs text-muted-foreground">Net Score</p>
-              <p className="text-2xl font-black text-emerald-600 mt-0.5">{netScoreB}</p>
+            {/* Net score B */}
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 py-3 text-center">
+              <p className="text-xs text-emerald-700 font-semibold uppercase tracking-wider">Net Score</p>
+              <p className="text-3xl font-black text-emerald-700 mt-0.5 tabular-nums">{netScoreB}</p>
             </div>
           </div>
-        </div>
 
-        <Separator />
+          <Separator />
 
-        {/* Match Complete toggle */}
-        <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
-          <Checkbox
-            id="match-complete"
-            checked={complete}
-            onCheckedChange={(v) => setComplete(Boolean(v))}
-          />
-          <Label htmlFor="match-complete" className="cursor-pointer font-medium">
-            Match Complete
-          </Label>
-        </div>
-
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving} className="flex-1">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+          {/* Match complete toggle */}
+          <button
+            type="button"
+            onClick={() => setComplete((v) => !v)}
+            className={`flex w-full items-center justify-between rounded-2xl border-2 px-5 py-4 transition-colors ${
+              complete
+                ? "border-emerald-500 bg-emerald-50"
+                : "border-border bg-muted/30"
+            }`}
           >
-            {saving ? (
-              <span className="flex items-center gap-2">
-                <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Saving...
-              </span>
-            ) : (
-              "Save Result"
-            )}
-          </Button>
-        </DialogFooter>
+            <span className="text-base font-bold">Match Complete</span>
+            <span
+              className={`flex h-7 w-12 items-center rounded-full transition-colors ${
+                complete ? "bg-[#114232]" : "bg-input"
+              }`}
+            >
+              <span
+                className={`ml-0.5 block h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                  complete ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </span>
+          </button>
+
+          {/* Action buttons */}
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="h-14 w-full rounded-2xl bg-[#114232] hover:bg-[#1a5c44] text-white text-base font-bold shadow-md"
+            >
+              {saving ? (
+                <span className="flex items-center gap-2">
+                  <Spinner />
+                  Saving...
+                </span>
+              ) : (
+                "Save Result"
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={saving}
+              className="h-12 w-full rounded-2xl text-base"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -4,13 +4,6 @@ import { useState, useEffect } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { AvatarUpload } from "@/components/ui/avatar-upload";
 import { uploadPlayerPhoto } from "@/lib/upload-photo";
 
@@ -284,11 +276,11 @@ export default function RegisterPage() {
   if (done) {
     return (
       <Shell>
-        <div className="flex flex-col items-center py-6 text-center">
+        <div className="flex flex-col items-center py-4 text-center">
           <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-cricket/10 text-cricket">
             <CheckIcon />
           </div>
-          <h2 className="mb-2 text-xl font-bold text-foreground">
+          <h2 className="mb-2 text-xl font-extrabold tracking-tight text-foreground">
             You&apos;re all set!
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -297,11 +289,17 @@ export default function RegisterPage() {
               : "Your mentor account has been created."}
           </p>
 
-          <div className="mt-6 flex flex-col gap-3 w-full max-w-xs">
-            <Link href="/dashboard" className="inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+          <div className="mt-6 flex flex-col gap-3 w-full">
+            <Link
+              href="/dashboard"
+              className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90"
+            >
               Go to Competitions
             </Link>
-            <Link href="/profile" className="inline-flex h-11 w-full items-center justify-center rounded-md border border-input bg-background px-8 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+            <Link
+              href="/profile"
+              className="inline-flex h-12 w-full items-center justify-center rounded-2xl border-2 border-cricket bg-background px-6 text-base font-bold text-cricket shadow-md transition-opacity hover:opacity-90"
+            >
               My Profile
             </Link>
           </div>
@@ -315,11 +313,11 @@ export default function RegisterPage() {
   if (deadlinePassed)
     return (
       <Shell>
-        <div className="flex flex-col items-center py-6 text-center">
+        <div className="flex flex-col items-center py-4 text-center">
           <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <LockIcon />
           </div>
-          <h2 className="mb-2 text-xl font-bold text-foreground">
+          <h2 className="mb-2 text-xl font-extrabold tracking-tight text-foreground">
             Registration Closed
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -341,7 +339,7 @@ export default function RegisterPage() {
     <Shell>
       {/* Deadline notice */}
       {deadline && !deadlinePassed && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg border border-border bg-cricket-light/60 px-4 py-3 text-sm text-foreground">
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-border bg-cricket-light/60 px-4 py-3 text-sm text-foreground">
           <ClockIcon />
           <span>
             Registration closes on{" "}
@@ -358,8 +356,8 @@ export default function RegisterPage() {
       )}
 
       {/* Title */}
-      <h2 className="mb-6 text-lg font-bold text-foreground">
-        {role === "parent" ? "Parent Registration" : "Mentor Registration"}
+      <h2 className="mb-5 text-xl font-extrabold tracking-tight text-foreground">
+        Parent Registration
       </h2>
 
       {/* Step indicator (parent only) */}
@@ -367,13 +365,13 @@ export default function RegisterPage() {
         <div className="mb-6 flex items-center gap-2">
           <StepDot active={step === 1} done={step === 2} label="1" />
           <div
-            className={`h-px flex-1 transition-colors ${
+            className={`h-0.5 flex-1 rounded transition-colors ${
               step === 2 ? "bg-cricket" : "bg-border"
             }`}
           />
           <StepDot active={step === 2 && !showPhotos} done={step === 2 && showPhotos} label="2" />
           <div
-            className={`h-px flex-1 transition-colors ${
+            className={`h-0.5 flex-1 rounded transition-colors ${
               showPhotos ? "bg-cricket" : "bg-border"
             }`}
           />
@@ -386,7 +384,7 @@ export default function RegisterPage() {
 
       {/* Server error */}
       {serverError && (
-        <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="mb-5 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {serverError}
         </div>
       )}
@@ -395,7 +393,7 @@ export default function RegisterPage() {
       {step === 1 && (
         <form
           onSubmit={handleAuth(onAuthSubmit)}
-          className="space-y-5"
+          className="space-y-4"
           noValidate
         >
           <div className="space-y-1.5">
@@ -406,6 +404,7 @@ export default function RegisterPage() {
               id="fullName"
               type="text"
               placeholder="Jane Smith"
+              className="h-12"
               {...regAuth("fullName", { required: "Full name is required." })}
             />
             {authErrors.fullName && (
@@ -423,6 +422,7 @@ export default function RegisterPage() {
               id="mobile"
               type="tel"
               placeholder="04XX XXX XXX"
+              className="h-12"
               {...regAuth("mobile", { required: "Mobile number is required." })}
             />
             {authErrors.mobile && (
@@ -440,6 +440,7 @@ export default function RegisterPage() {
               id="email"
               type="email"
               placeholder="jane@example.com"
+              className="h-12"
               {...regAuth("email", { required: "Email is required." })}
             />
             {authErrors.email && (
@@ -457,6 +458,7 @@ export default function RegisterPage() {
               id="password"
               type="password"
               placeholder="Min. 6 characters"
+              className="h-12"
               {...regAuth("password", {
                 required: "Password is required.",
                 minLength: {
@@ -472,11 +474,10 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <Button
+          <button
             type="submit"
             disabled={authSubmitting}
-            className="h-11 w-full text-sm font-bold"
-            size="lg"
+            className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {authSubmitting ? (
               <span className="flex items-center gap-2">
@@ -487,7 +488,7 @@ export default function RegisterPage() {
             ) : (
               "Complete Registration"
             )}
-          </Button>
+          </button>
         </form>
       )}
 
@@ -495,7 +496,7 @@ export default function RegisterPage() {
       {step === 2 && role === "parent" && showPhotos && (
         <div className="space-y-5">
           <div>
-            <h3 className="text-base font-bold text-foreground">
+            <h3 className="text-base font-extrabold tracking-tight text-foreground">
               Add Player Photos
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -503,19 +504,19 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="flex flex-wrap justify-center gap-5">
             {playerIds.map((player) => (
               <div
                 key={player.id}
-                className="flex items-center gap-4 rounded-xl border border-border bg-muted/40 px-4 py-3"
+                className="flex flex-col items-center gap-2"
               >
                 <AvatarUpload
-                  size={72}
+                  size={80}
                   onUpload={(file) =>
                     uploadPlayerPhoto(supabase, parentUid!, player.id, file)
                   }
                 />
-                <span className="text-sm font-semibold text-foreground">
+                <span className="text-xs font-semibold text-foreground text-center max-w-[80px] truncate">
                   {player.name}
                 </span>
               </div>
@@ -523,21 +524,20 @@ export default function RegisterPage() {
           </div>
 
           <div className="flex gap-3">
-            <Button
+            <button
               type="button"
-              variant="outline"
-              className="h-11 flex-1 text-sm font-semibold"
+              className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border-2 border-cricket bg-background text-base font-bold text-cricket shadow-md transition-opacity hover:opacity-90"
               onClick={() => setDone(true)}
             >
               Skip
-            </Button>
-            <Button
+            </button>
+            <button
               type="button"
-              className="h-11 flex-1 text-sm font-bold"
+              className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-cricket text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90"
               onClick={() => setDone(true)}
             >
               Done
-            </Button>
+            </button>
           </div>
         </div>
       )}
@@ -546,97 +546,92 @@ export default function RegisterPage() {
       {step === 2 && role === "parent" && !showPhotos && (
         <form
           onSubmit={handleChildren(onChildrenSubmit)}
-          className="space-y-5"
+          className="space-y-4"
           noValidate
         >
-          <h3 className="text-base font-bold text-foreground">
+          <h3 className="text-base font-extrabold tracking-tight text-foreground">
             Add Your Children
           </h3>
 
           <div className="space-y-3">
             {fields.map((field, index) => (
-              <Card
+              <div
                 key={field.id}
-                className="bg-muted/40 shadow-none"
+                className="rounded-2xl border border-border bg-muted/40 shadow-md px-4 pt-4 pb-4 space-y-3"
               >
-                <CardHeader className="pb-3 pt-4">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="text-xs">
-                      Child {index + 1}
-                    </Badge>
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => remove(index)}
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 pb-4">
-                  <div className="space-y-1.5">
-                    <Input
-                      type="text"
-                      placeholder="Child's name"
-                      {...regChild(`children.${index}.name` as const, {
-                        required: "Name is required.",
-                      })}
-                    />
-                    {childErrors.children?.[index]?.name && (
-                      <p className="text-xs text-destructive">
-                        {childErrors.children[index].name?.message}
-                      </p>
-                    )}
-                  </div>
+                <div className="flex items-center justify-between">
+                  <Badge variant="secondary" className="text-xs">
+                    Child {index + 1}
+                  </Badge>
+                  {fields.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => remove(index)}
+                      className="text-xs font-medium text-muted-foreground hover:text-destructive"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      School Year
-                    </Label>
-                    <Controller
-                      control={control}
-                      name={`children.${index}.schoolYear` as const}
-                      render={({ field: controlledField }) => (
-                        <Select
-                          value={controlledField.value}
-                          onValueChange={controlledField.onChange}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select year" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SCHOOL_YEARS.map((g) => (
-                              <SelectItem key={g} value={g}>
-                                {g}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+                <div className="space-y-1.5">
+                  <Input
+                    type="text"
+                    placeholder="Child's name"
+                    className="h-12"
+                    {...regChild(`children.${index}.name` as const, {
+                      required: "Name is required.",
+                    })}
+                  />
+                  {childErrors.children?.[index]?.name && (
+                    <p className="text-xs text-destructive">
+                      {childErrors.children[index].name?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    School Year
+                  </Label>
+                  <Controller
+                    control={control}
+                    name={`children.${index}.schoolYear` as const}
+                    render={({ field: controlledField }) => (
+                      <Select
+                        value={controlledField.value}
+                        onValueChange={controlledField.onChange}
+                      >
+                        <SelectTrigger className="h-12 w-full">
+                          <SelectValue placeholder="Select year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SCHOOL_YEARS.map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {g}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              </div>
             ))}
           </div>
 
           <button
             type="button"
             onClick={() => append({ name: "", schoolYear: "Y3" })}
-            className="w-full rounded-xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition hover:border-cricket hover:text-cricket focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full rounded-2xl border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition hover:border-cricket hover:text-cricket focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             + Add Another Child
           </button>
 
-          <Button
+          <button
             type="submit"
             disabled={childSubmitting}
-            className="h-11 w-full text-sm font-bold"
-            size="lg"
+            className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {childSubmitting ? (
               <span className="flex items-center gap-2">
@@ -645,11 +640,12 @@ export default function RegisterPage() {
             ) : (
               "Save & Continue"
             )}
-          </Button>
+          </button>
         </form>
       )}
-      <Separator className="my-5" />
-      <div className="space-y-2 text-center text-sm text-muted-foreground">
+
+      {/* Footer links */}
+      <div className="mt-6 space-y-2 text-center text-sm text-muted-foreground">
         <p>
           Already have an account?{" "}
           <Link href="/login" className="font-semibold text-primary hover:underline">
@@ -688,31 +684,13 @@ export default function RegisterPage() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-start justify-center bg-background px-4 py-12 sm:items-center">
-      <div className="w-full max-w-lg">
+    <div className="flex min-h-screen flex-col items-center justify-start bg-[#f5f5f5] px-4 py-10">
+      <div className="w-full max-w-md space-y-5">
         {/* Branding */}
-        <div className="mb-8 text-center">
-          <div
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl"
-            style={{ background: "var(--cricket)" }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-            Cricket Club
+        <div className="text-center">
+          <p className="text-3xl">🏏</p>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-foreground">
+            Junior 5-a-Side
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Youth Tournament Registration
@@ -720,9 +698,9 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Card */}
-        <Card className="bg-card shadow-sm">
-          <CardContent className="p-8">{children}</CardContent>
-        </Card>
+        <div className="rounded-2xl bg-background shadow-md px-6 py-7">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -741,7 +719,7 @@ function StepDot({
 }) {
   return (
     <span
-      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-all ${
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-extrabold transition-all ${
         done
           ? "bg-cricket text-cricket-foreground"
           : active
@@ -751,7 +729,7 @@ function StepDot({
     >
       {done ? (
         <svg
-          className="h-3.5 w-3.5"
+          className="h-4 w-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

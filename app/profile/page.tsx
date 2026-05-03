@@ -141,124 +141,125 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-md px-4 py-10 space-y-6">
+    <div className="px-4 py-6 space-y-6">
 
-        {/* Page header */}
-        <div className="space-y-1">
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-            {profile?.full_name || "My Profile"}
-          </h1>
-          {profile?.role && (
-            <div className="pt-1">
-              <Badge variant="default" className="bg-cricket text-white text-xs font-semibold px-3 py-0.5">
-                {roleLabel(profile.role)}
-              </Badge>
+      {/* Name + role — no page header, start with content */}
+      <div className="space-y-2">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground leading-tight">
+          {profile?.full_name || "My Profile"}
+        </h1>
+        {profile?.role && (
+          <Badge className="bg-cricket text-white text-xs font-bold px-3 py-1 rounded-full">
+            {roleLabel(profile.role)}
+          </Badge>
+        )}
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {/* Contact details card */}
+      <Card className="rounded-2xl shadow-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold">Contact Details</CardTitle>
+          <CardDescription className="text-sm">Update your name and mobile number.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="full-name" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Full Name
+            </Label>
+            <Input
+              id="full-name"
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="h-12 rounded-xl text-base"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="mobile" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Mobile Number
+            </Label>
+            <Input
+              id="mobile"
+              type="tel"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              className="h-12 rounded-xl text-base"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Email
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Managed via your login — contact an organiser to change.
+            </p>
+          </div>
+
+          <Separator />
+
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full h-12 rounded-xl bg-cricket hover:bg-cricket/90 text-white font-bold text-base shadow-md"
+          >
+            {saving ? "Saving..." : "Update Details"}
+          </Button>
+
+          {saved && (
+            <p className="text-center text-sm font-semibold text-cricket">
+              Details updated successfully.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Children (parents only) */}
+      {profile?.role === "parent" && (
+        <div className="space-y-3">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-base font-bold text-foreground uppercase tracking-wide">
+              My Children
+            </h2>
+            <span className="text-sm text-muted-foreground">{children.length}</span>
+          </div>
+
+          {children.length === 0 ? (
+            <p className="text-sm text-muted-foreground px-1">
+              No children registered.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {children.map((child) => (
+                <Card key={child.id} className="rounded-2xl shadow-md">
+                  <CardContent className="flex items-center justify-between px-5 py-4">
+                    <span className="text-base font-semibold text-foreground">
+                      {child.name}
+                    </span>
+                    <Badge
+                      variant="secondary"
+                      className="bg-cricket-light text-cricket font-bold rounded-full px-3"
+                    >
+                      {child.age_group}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </div>
+      )}
 
-        {/* Error banner */}
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        {/* Contact details */}
-        <Card className="shadow-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">Contact Details</CardTitle>
-            <CardDescription>Update your name and mobile number.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="full-name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Full Name
-              </Label>
-              <Input
-                id="full-name"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="h-11"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="mobile" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Mobile Number
-              </Label>
-              <Input
-                id="mobile"
-                type="tel"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                className="h-11"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Email
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Managed via your login — contact an organiser to change.
-              </p>
-            </div>
-
-            <Separator />
-
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full h-12 bg-cricket hover:bg-cricket/90 text-white font-bold text-sm shadow-md"
-            >
-              {saving ? "Saving..." : "Update Details"}
-            </Button>
-
-            {saved && (
-              <p className="text-center text-sm font-medium text-cricket">
-                Details updated successfully.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Children (parents only) */}
-        {profile?.role === "parent" && (
-          <div className="space-y-3">
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-lg font-bold text-foreground">My Children</h2>
-              <span className="text-sm text-muted-foreground">{children.length}</span>
-            </div>
-
-            {children.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No children registered.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {children.map((child) => (
-                  <Card key={child.id} className="shadow-sm">
-                    <CardContent className="flex items-center justify-between px-5 py-4">
-                      <span className="text-base font-semibold text-foreground">
-                        {child.name}
-                      </span>
-                      <Badge
-                        variant="secondary"
-                        className="bg-cricket-light text-cricket font-semibold"
-                      >
-                        {child.age_group}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Safe-area bottom pad */}
+      <div className="h-6" />
     </div>
   );
 }
