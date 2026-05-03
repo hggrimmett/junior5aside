@@ -1,204 +1,85 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
-
-interface Tournament {
-  id: string;
-  name: string;
-  colour: "Green" | "Red" | "Blue";
-}
-
-const COLOUR_STYLE: Record<
-  string,
-  { border: string; badge: string; years: string; dot: string }
-> = {
-  Green: {
-    border: "border-l-[4px] border-l-green-500",
-    badge:  "bg-green-100 text-green-800",
-    years:  "Y3 / Y4",
-    dot:    "bg-green-500",
-  },
-  Red: {
-    border: "border-l-[4px] border-l-red-500",
-    badge:  "bg-red-100 text-red-800",
-    years:  "Y5 / Y6",
-    dot:    "bg-red-500",
-  },
-  Blue: {
-    border: "border-l-[4px] border-l-blue-500",
-    badge:  "bg-blue-100 text-blue-800",
-    years:  "Y7 / Y8",
-    dot:    "bg-blue-500",
-  },
-};
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function DashboardPage() {
-  const supabase = getSupabaseBrowserClient();
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase
-      .from("tournaments")
-      .select("id, name, colour")
-      .returns<Tournament[]>()
-      .then(({ data }) => {
-        setTournaments(data ?? []);
-        setLoading(false);
-      });
-  }, [supabase]);
-
   return (
-    <div className="px-4 py-5 space-y-5">
-      {/* Page title */}
-      <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-        Home
-      </h2>
+    <div className="px-4 py-5 space-y-4">
+      {/* Event title */}
+      <div className="rounded-2xl bg-cricket px-5 py-5 text-white shadow-md">
+        <p className="text-xs font-bold uppercase tracking-widest text-white/50">
+          Tournament Day
+        </p>
+        <h2 className="mt-1 text-xl font-extrabold tracking-tight">
+          Junior 5-a-Side
+        </h2>
+      </div>
 
-      {/* My Players card */}
-      <Link href="/my-players">
-        <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform border-l-[4px] border-l-cricket">
-          <CardContent className="flex items-center justify-between px-5 py-4">
-            <div className="flex items-center gap-3">
-              <svg className="h-6 w-6 text-cricket" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <div>
-                <p className="font-extrabold tracking-tight text-foreground leading-tight">
-                  My Players
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  View your registered children
-                </p>
+      {/* Main nav cards */}
+      <div className="flex flex-col gap-3">
+        {/* My Players */}
+        <Link href="/my-players">
+          <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform border-l-[4px] border-l-cricket">
+            <CardContent className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <svg className="h-6 w-6 text-cricket" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <div>
+                  <p className="font-extrabold tracking-tight text-foreground leading-tight">
+                    My Players
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    View and manage your registered children
+                  </p>
+                </div>
               </div>
-            </div>
-            <span className="text-sm font-bold text-muted-foreground">View →</span>
-          </CardContent>
-        </Card>
-      </Link>
-
-      {/* Competitions section */}
-      <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground pt-1">
-        Competitions
-      </h3>
-
-      {/* Tournament cards */}
-      {loading ? (
-        <div className="flex h-40 items-center justify-center">
-          <svg
-            className="h-6 w-6 animate-spin text-muted-foreground"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-          </svg>
-        </div>
-      ) : tournaments.length === 0 ? (
-        <Card className="rounded-2xl shadow-md">
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            No competitions have been created yet.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {tournaments.map((t) => {
-            const style = COLOUR_STYLE[t.colour] ?? COLOUR_STYLE.Green;
-            return (
-              <Link key={t.id} href={`/standings?tab=${t.colour}`}>
-                <Card
-                  className={`
-                    rounded-2xl shadow-md overflow-hidden cursor-pointer
-                    active:scale-[0.98] transition-transform
-                    ${style.border}
-                  `}
-                >
-                  <CardContent className="flex items-center justify-between px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`}
-                      />
-                      <div>
-                        <p className="font-extrabold tracking-tight text-foreground leading-tight">
-                          {t.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {style.years}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-sm font-bold text-muted-foreground">
-                      View →
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Quick-link tiles */}
-      <div className="grid grid-cols-2 gap-3 pt-1">
-        <Link href="/profile">
-          <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform">
-            <CardContent className="flex flex-col items-center justify-center gap-2 py-5 px-4 h-12 min-h-[5rem]">
-              <svg
-                className="h-6 w-6 text-muted-foreground"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.75}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-              <span className="text-sm font-extrabold tracking-tight">
-                My Profile
-              </span>
+              <span className="text-sm font-bold text-muted-foreground">→</span>
             </CardContent>
           </Card>
         </Link>
 
+        {/* Scores & Standings */}
         <Link href="/standings">
-          <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform">
-            <CardContent className="flex flex-col items-center justify-center gap-2 py-5 px-4 h-12 min-h-[5rem]">
-              <svg
-                className="h-6 w-6 text-muted-foreground"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.75}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
-              <span className="text-sm font-extrabold tracking-tight">
-                All Standings
-              </span>
+          <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform border-l-[4px] border-l-amber-500">
+            <CardContent className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <svg className="h-6 w-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <div>
+                  <p className="font-extrabold tracking-tight text-foreground leading-tight">
+                    Scores &amp; Standings
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Live results across all age groups
+                  </p>
+                </div>
+              </div>
+              <span className="text-sm font-bold text-muted-foreground">→</span>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* My Profile */}
+        <Link href="/profile">
+          <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform border-l-[4px] border-l-blue-500">
+            <CardContent className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <div>
+                  <p className="font-extrabold tracking-tight text-foreground leading-tight">
+                    My Profile
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Your contact details and account
+                  </p>
+                </div>
+              </div>
+              <span className="text-sm font-bold text-muted-foreground">→</span>
             </CardContent>
           </Card>
         </Link>
