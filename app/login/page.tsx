@@ -39,7 +39,7 @@ export default function LoginPage() {
     }
 
     // Hard redirect so auth cookies are picked up on the next page load
-    window.location.href = "/dashboard";
+    window.location.href = "/home";
   }
 
   return (

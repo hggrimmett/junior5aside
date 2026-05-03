@@ -291,10 +291,10 @@ export default function RegisterPage() {
 
           <div className="mt-6 flex flex-col gap-3 w-full">
             <Link
-              href="/dashboard"
+              href="/home"
               className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90"
             >
-              Go to Competitions
+              Go to Home
             </Link>
             <Link
               href="/profile"

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   {
-    href: "/dashboard",
+    href: "/home",
     label: "Home",
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
