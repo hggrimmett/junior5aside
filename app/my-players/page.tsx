@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,9 +59,20 @@ export default function MyPlayersPage() {
 
   return (
     <div className="px-4 py-5 space-y-5">
-      <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-        My Players
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-extrabold tracking-tight text-foreground">
+          My Players
+        </h2>
+        <Link
+          href="/register"
+          className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-cricket px-4 text-sm font-bold text-cricket-foreground active:opacity-80 transition-opacity"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Add Player
+        </Link>
+      </div>
 
       {players.length === 0 ? (
         <Card className="rounded-2xl shadow-md">
