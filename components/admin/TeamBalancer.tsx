@@ -120,29 +120,18 @@ function PlayerAvatar({
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: player.id });
 
-  // Long press detection — cancel if finger moves (drag starts)
-  const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStartPos = React.useRef<{ x: number; y: number } | null>(null);
+  // Tap detection: if pointer down + up without drag (no movement), show dialog
+  const didDrag = React.useRef(false);
 
-  function handlePointerDown(e: React.PointerEvent) {
-    touchStartPos.current = { x: e.clientX, y: e.clientY };
-    longPressTimer.current = setTimeout(() => {
+  function handleDragStarted() {
+    didDrag.current = true;
+  }
+  function handleClick() {
+    // Only fire if we didn't drag (dnd-kit activation = 5px movement)
+    if (!didDrag.current) {
       onLongPress?.(player);
-    }, 600);
-  }
-  function handlePointerMove(e: React.PointerEvent) {
-    if (!touchStartPos.current || !longPressTimer.current) return;
-    const dx = Math.abs(e.clientX - touchStartPos.current.x);
-    const dy = Math.abs(e.clientY - touchStartPos.current.y);
-    // Cancel long-press if finger moved more than 5px (drag threshold)
-    if (dx > 5 || dy > 5) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
     }
-  }
-  function handlePointerUp() {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-    touchStartPos.current = null;
+    didDrag.current = false;
   }
 
   const styles = COLOUR_STYLES[colour];
@@ -181,11 +170,9 @@ function PlayerAvatar({
       ref={(node) => { setDragRef(node); setDropRef(node); }}
       {...listeners}
       {...attributes}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      onContextMenu={(e) => { e.preventDefault(); onLongPress?.(player); }}
+      onPointerDown={() => { didDrag.current = false; }}
+      onPointerMove={() => { didDrag.current = true; }}
+      onClick={handleClick}
       className="cursor-grab touch-none transition-transform active:scale-110"
     >
       {avatar}
