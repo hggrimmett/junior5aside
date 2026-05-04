@@ -1341,23 +1341,23 @@ export default function ScorePage() {
       {!transition && !inningsComplete && (
         <div className="flex-1 px-2 flex flex-col gap-1 justify-center">
           <div className="grid grid-cols-3 gap-1">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 0 })} className="h-[4.5rem] rounded-2xl bg-gray-200 text-gray-600 text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">0</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 1 })} className="h-[4.5rem] rounded-2xl bg-white border-2 border-gray-300 text-gray-800 text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">1</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2 })} className="h-[4.5rem] rounded-2xl bg-white border-2 border-gray-300 text-gray-800 text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">2</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 3 })} className="h-[4.5rem] rounded-2xl bg-white border-2 border-gray-300 text-gray-800 text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">3</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 4 })} className="h-[4.5rem] rounded-2xl bg-cricket text-white text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">4</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 6 })} className="h-[4.5rem] rounded-2xl bg-cricket text-white text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">6</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 0 })} className="h-[9rem] rounded-2xl bg-gray-200 text-gray-600 text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">0</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 1 })} className="h-[9rem] rounded-2xl bg-white border-2 border-gray-300 text-gray-800 text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">1</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2 })} className="h-[9rem] rounded-2xl bg-white border-2 border-gray-300 text-gray-800 text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">2</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 3 })} className="h-[9rem] rounded-2xl bg-white border-2 border-gray-300 text-gray-800 text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">3</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 4 })} className="h-[9rem] rounded-2xl bg-cricket text-white text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">4</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 6 })} className="h-[9rem] rounded-2xl bg-cricket text-white text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">6</button>
           </div>
           <div className="grid grid-cols-3 gap-1">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="col-span-2 h-14 rounded-2xl bg-red-500 text-white text-lg font-black active:scale-95 transition-transform disabled:opacity-50">WICKET</button>
-            <button disabled={saving} onClick={undoLast} className="h-14 rounded-2xl border-2 border-amber-400 text-amber-600 text-xs font-bold active:scale-95 transition-transform disabled:opacity-50">Undo</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="col-span-2 h-[7rem] rounded-2xl bg-red-500 text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50">WICKET</button>
+            <button disabled={saving} onClick={undoLast} className="h-[7rem] rounded-2xl border-2 border-amber-400 text-amber-600 text-sm font-bold active:scale-95 transition-transform disabled:opacity-50">Undo</button>
           </div>
           <div className="grid grid-cols-5 gap-1">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "wide" })} className="h-11 rounded-xl bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-black active:scale-95 disabled:opacity-50">Wide</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "no_ball" })} className="h-11 rounded-xl bg-orange-100 text-orange-800 border border-orange-200 text-[11px] font-black active:scale-95 disabled:opacity-50">NoBall</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 1, extraType: "bye" })} className="h-11 rounded-xl bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-black active:scale-95 disabled:opacity-50">1Bye</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "bye" })} className="h-11 rounded-xl bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-black active:scale-95 disabled:opacity-50">2Bye</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 4, extraType: "bye" })} className="h-11 rounded-xl bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-black active:scale-95 disabled:opacity-50">4Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "wide" })} className="h-[5.5rem] rounded-xl bg-amber-100 text-amber-800 border border-amber-200 text-sm font-black active:scale-95 disabled:opacity-50">Wide</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "no_ball" })} className="h-[5.5rem] rounded-xl bg-orange-100 text-orange-800 border border-orange-200 text-sm font-black active:scale-95 disabled:opacity-50">NoBall</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 1, extraType: "bye" })} className="h-[5.5rem] rounded-xl bg-blue-100 text-blue-800 border border-blue-200 text-sm font-black active:scale-95 disabled:opacity-50">1Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "bye" })} className="h-[5.5rem] rounded-xl bg-blue-100 text-blue-800 border border-blue-200 text-sm font-black active:scale-95 disabled:opacity-50">2Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 4, extraType: "bye" })} className="h-[5.5rem] rounded-xl bg-blue-100 text-blue-800 border border-blue-200 text-sm font-black active:scale-95 disabled:opacity-50">4Bye</button>
           </div>
         </div>
       )}
