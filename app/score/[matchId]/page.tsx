@@ -51,7 +51,7 @@ interface MatchEvent {
   created_at: string;
 }
 
-type ExtraType = "wide" | "no_ball" | "bye";
+type ExtraType = "wide" | "no_ball" | "bye" | "bowled" | "caught" | "runout_striker" | "runout_nonstriker";
 
 type Phase =
   | "team_a_setup"
@@ -111,7 +111,7 @@ function badgeStyle(label: string): string {
 }
 
 /** Determine which batter in the pair is on strike (0 or 1).
- *  Strike swaps on odd runs/byes. Strike swaps at end of each over. */
+ *  Strike swaps on: odd runs/byes, end of each over, wickets (bowled/caught). */
 function getStrikerIndex(events: MatchEvent[], teamId: string, pair: string[]): number {
   if (pair.length < 2) return 0;
   const innings = events.filter((e) => e.team_id === teamId);
@@ -119,12 +119,28 @@ function getStrikerIndex(events: MatchEvent[], teamId: string, pair: string[]): 
 
   for (let i = 0; i < innings.length; i++) {
     const e = innings[i];
-    // After each ball, check if strike changes
     const runs = e.runs;
-    // Odd runs swap strike (including byes)
-    if (runs % 2 === 1) {
-      striker = striker === 0 ? 1 : 0;
+
+    // Wicket swaps strike (bowled/caught = striker out, swap to face next ball)
+    // For run out, the extra_type contains "runout_nonstriker" or "runout_striker"
+    if (e.is_wicket) {
+      const wType = e.extra_type ?? "bowled";
+      if (wType === "bowled" || wType === "caught") {
+        // Striker lost wicket — swap strike
+        striker = striker === 0 ? 1 : 0;
+      } else if (wType === "runout_nonstriker") {
+        // Non-striker run out — no swap
+      } else if (wType === "runout_striker") {
+        // Striker run out — swap
+        striker = striker === 0 ? 1 : 0;
+      }
+    } else {
+      // Odd runs swap strike (including byes)
+      if (runs % 2 === 1) {
+        striker = striker === 0 ? 1 : 0;
+      }
     }
+
     // End of over swaps strike (every 6 balls)
     if ((i + 1) % 6 === 0) {
       striker = striker === 0 ? 1 : 0;
@@ -186,6 +202,7 @@ export default function ScorePage() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [manualStrikeSwaps, setManualStrikeSwaps] = useState(0);
+  const [showWicketDialog, setShowWicketDialog] = useState(false);
 
   // Phase / flow state
   const [phase, setPhase] = useState<Phase>("team_a_setup");
@@ -1002,6 +1019,14 @@ export default function ScorePage() {
   const strikerPlayer = pairPlayers[strikerIdx] ?? pairPlayers[0];
   const nonStrikerPlayer = pairPlayers[strikerIdx === 0 ? 1 : 0];
 
+  // Individual batter runs (non-extra only)
+  const batterRuns = (playerId: string | undefined) => {
+    if (!playerId) return 0;
+    return events.filter(
+      (e) => e.team_id === scoringTeamId && e.batter_id === playerId && !e.extra_type
+    ).reduce((sum, e) => sum + e.runs, 0);
+  };
+
   // Current over balls (for this over only)
   const currentOverBalls = (() => {
     const innings = events.filter((e) => e.team_id === scoringTeamId);
@@ -1260,8 +1285,8 @@ export default function ScorePage() {
           </p>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-cricket-foreground text-lg font-black">
-              🏏 {strikerPlayer?.first_name ?? "?"}
-              <span className="text-cricket-foreground/50 text-sm font-semibold ml-2">{nonStrikerPlayer?.first_name ?? ""}</span>
+              🏏 {strikerPlayer?.first_name ?? "?"} <span className="text-sm">{batterRuns(strikerPlayer?.id)}*</span>
+              <span className="text-cricket-foreground/50 text-sm font-semibold ml-2">{nonStrikerPlayer?.first_name ?? ""} {batterRuns(nonStrikerPlayer?.id)}</span>
             </p>
             <button
               onClick={() => setManualStrikeSwaps((s) => s + 1)}
@@ -1308,6 +1333,7 @@ export default function ScorePage() {
       </div>
 
       {/* Menu overlay */}
+      {/* Menu overlay */}
       {showMenu && (
         <div className="absolute inset-0 z-40 bg-black/50 flex items-center justify-center px-6" onClick={() => setShowMenu(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-background p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
@@ -1334,6 +1360,45 @@ export default function ScorePage() {
         </div>
       )}
 
+      {/* Wicket type dialog */}
+      {showWicketDialog && (
+        <div className="absolute inset-0 z-40 bg-black/50 flex items-center justify-center px-6" onClick={() => setShowWicketDialog(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-background p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <p className="text-base font-black text-foreground text-center">How out?</p>
+            <button
+              onClick={() => { setShowWicketDialog(false); insertEvent({ runs: 0, isWicket: true, extraType: "bowled" }); }}
+              className="w-full h-14 rounded-xl bg-red-500 text-white text-lg font-black active:scale-95 transition-transform"
+            >
+              Bowled
+            </button>
+            <button
+              onClick={() => { setShowWicketDialog(false); insertEvent({ runs: 0, isWicket: true, extraType: "caught" }); }}
+              className="w-full h-14 rounded-xl bg-red-500 text-white text-lg font-black active:scale-95 transition-transform"
+            >
+              Caught
+            </button>
+            <p className="text-xs font-bold text-muted-foreground text-center pt-2">Run Out — who was out?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => { setShowWicketDialog(false); insertEvent({ runs: 0, isWicket: true, extraType: "runout_striker" }); }}
+                className="h-14 rounded-xl bg-red-400 text-white text-sm font-black active:scale-95 transition-transform"
+              >
+                {strikerPlayer?.first_name ?? "Striker"}
+              </button>
+              <button
+                onClick={() => { setShowWicketDialog(false); insertEvent({ runs: 0, isWicket: true, extraType: "runout_nonstriker" }); }}
+                className="h-14 rounded-xl bg-red-400 text-white text-sm font-black active:scale-95 transition-transform"
+              >
+                {nonStrikerPlayer?.first_name ?? "Non-striker"}
+              </button>
+            </div>
+            <button onClick={() => setShowWicketDialog(false)} className="w-full h-10 text-sm font-bold text-muted-foreground">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Transition card (if any) */}
       {transition && <div className="px-4 pt-3 shrink-0">{renderTransition()}</div>}
 
@@ -1349,7 +1414,7 @@ export default function ScorePage() {
             <button disabled={saving} onClick={() => insertEvent({ runs: 6 })} className="h-[9rem] rounded-2xl bg-cricket text-white text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">6</button>
           </div>
           <div className="grid grid-cols-3 gap-1">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="col-span-2 h-[7rem] rounded-2xl bg-red-500 text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50">WICKET</button>
+            <button disabled={saving} onClick={() => setShowWicketDialog(true)} className="col-span-2 h-[7rem] rounded-2xl bg-red-500 text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50">WICKET</button>
             <button disabled={saving} onClick={undoLast} className="h-[7rem] rounded-2xl border-2 border-amber-400 text-amber-600 text-sm font-bold active:scale-95 transition-transform disabled:opacity-50">Undo</button>
           </div>
           <div className="grid grid-cols-5 gap-1">
