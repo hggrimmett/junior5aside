@@ -1258,15 +1258,16 @@ export default function ScorePage() {
           <p className="text-cricket-foreground/70 text-[10px] font-bold uppercase tracking-widest">
             {scoringTeamName} · Over {scoringOver}/4 · {bowlerPlayer ? `${bowlerPlayer.first_name} bowling` : ""}
           </p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-cricket-foreground text-xs font-bold">
-              🏏 {strikerPlayer?.first_name ?? "?"}{nonStrikerPlayer ? ` · ${nonStrikerPlayer.first_name}` : ""}
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-cricket-foreground text-lg font-black">
+              🏏 {strikerPlayer?.first_name ?? "?"}
+              <span className="text-cricket-foreground/50 text-sm font-semibold ml-2">{nonStrikerPlayer?.first_name ?? ""}</span>
             </p>
             <button
               onClick={() => setManualStrikeSwaps((s) => s + 1)}
-              className="h-6 px-2 rounded bg-white/20 text-[10px] font-bold text-white active:bg-white/30"
+              className="h-7 px-2.5 rounded-lg bg-white/20 text-xs font-bold text-white active:bg-white/30"
             >
-              ⇄ Swap
+              ⇄
             </button>
           </div>
           <div className="flex items-baseline gap-3">
