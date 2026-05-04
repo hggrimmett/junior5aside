@@ -1339,7 +1339,7 @@ export default function ScorePage() {
 
       {/* Scoring buttons — large, tight spacing */}
       {!transition && !inningsComplete && (
-        <div className="flex-1 px-2 flex flex-col gap-1 justify-center">
+        <div className="flex-1 px-2 flex flex-col gap-1">
           <div className="grid grid-cols-3 gap-1">
             <button disabled={saving} onClick={() => insertEvent({ runs: 0 })} className="h-[9rem] rounded-2xl bg-gray-200 text-gray-600 text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">0</button>
             <button disabled={saving} onClick={() => insertEvent({ runs: 1 })} className="h-[9rem] rounded-2xl bg-white border-2 border-gray-300 text-gray-800 text-4xl font-black active:scale-95 transition-transform disabled:opacity-50">1</button>
