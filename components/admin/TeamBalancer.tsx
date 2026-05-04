@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -101,39 +101,53 @@ function getInitials(firstName: string, lastName: string): string {
   return `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase();
 }
 
-// ── PlayerAvatar — draggable ───────────────────────────────
+// ── PlayerAvatar — draggable + droppable (for swap) ──────────
 
 function PlayerAvatar({
   player,
   colour,
   overlay = false,
+  onLongPress,
 }: {
   player: Player;
   colour: TournamentColour;
   overlay?: boolean;
+  onLongPress?: (player: Player) => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: player.id,
     data: player,
   });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: player.id });
+
+  // Long press detection
+  const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleTouchStart() {
+    longPressTimer.current = setTimeout(() => {
+      onLongPress?.(player);
+    }, 600);
+  }
+  function handleTouchEnd() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }
 
   const styles = COLOUR_STYLES[colour];
 
   const avatar = (
-    <div className="flex flex-col items-center gap-1">
+    <div className={`flex flex-col items-center gap-1 ${isOver && !overlay ? "scale-110" : ""} transition-transform`}>
       {player.avatar_url ? (
         <img
           src={player.avatar_url}
           alt={`${player.first_name} ${player.last_name}`}
           className={`h-12 w-12 rounded-full object-cover ring-2 ${styles.ring} ${
             isDragging && !overlay ? "opacity-25" : ""
-          }`}
+          } ${isOver ? "ring-4 ring-amber-400" : ""}`}
         />
       ) : (
         <span
           className={`flex h-12 w-12 items-center justify-center rounded-full text-xs font-black ring-2 ${styles.bg} ${styles.text} ${styles.ring} ${
             isDragging && !overlay ? "opacity-25" : ""
-          }`}
+          } ${isOver ? "ring-4 ring-amber-400" : ""}`}
         >
           {getInitials(player.first_name, player.last_name)}
         </span>
@@ -150,9 +164,13 @@ function PlayerAvatar({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => { setDragRef(node); setDropRef(node); }}
       {...listeners}
       {...attributes}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      onContextMenu={(e) => { e.preventDefault(); onLongPress?.(player); }}
       className="cursor-grab touch-none transition-transform active:scale-110"
     >
       {avatar}
@@ -170,12 +188,14 @@ function TeamDropCard({
   mentors,
   assignedMentorIds,
   onMentorChange,
+  onLongPress,
 }: {
   team: Team;
   players: Player[];
   maxPlayerSlots: number;
   colour: TournamentColour;
   mentors: Mentor[];
+  onLongPress: (p: Player) => void;
   assignedMentorIds: Set<string>;
   onMentorChange: (teamId: string, mentorId: string | null) => void;
 }) {
@@ -247,7 +267,7 @@ function TeamDropCard({
           ) : (
             <div className="flex flex-wrap gap-3">
               {players.map((p) => (
-                <PlayerAvatar key={p.id} player={p} colour={colour} />
+                <PlayerAvatar key={p.id} player={p} colour={colour} onLongPress={onLongPress} />
               ))}
             </div>
           )}
@@ -422,6 +442,17 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
 
   // ── Drag handlers ──────────────────────────────────────
 
+  // Long-press state for tournament move
+  const [longPressPlayer, setLongPressPlayer] = useState<Player | null>(null);
+  const [allTournaments, setAllTournaments] = useState<{ id: string; name: string; colour: string }[]>([]);
+
+  // Fetch all tournaments for the move dialog
+  useEffect(() => {
+    supabase.from("tournaments").select("id, name, colour").then(({ data }) => {
+      setAllTournaments(data ?? []);
+    });
+  }, [supabase]);
+
   function handleDragStart(event: DragStartEvent) {
     setActivePlayer(event.active.data.current as Player);
   }
@@ -432,33 +463,79 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
     if (!over) return;
 
     const playerId = active.id as string;
-    const teamId = over.id as string;
+    const dropTarget = over.id as string;
+    const draggedPlayer = players.find((p) => p.id === playerId);
+    if (!draggedPlayer) return;
 
-    // Don't drop onto a full team (player slots only, mentor is separate)
+    // Dropped onto the "unassigned" zone
+    if (dropTarget === "unassigned-pool") {
+      if (draggedPlayer.team_id === null) return; // already unassigned
+      const prevTeamId = draggedPlayer.team_id;
+      setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, team_id: null } : p)));
+      const { error: err } = await supabase.from("players").update({ team_id: null }).eq("id", playerId);
+      if (err) {
+        setError(err.message);
+        setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, team_id: prevTeamId } : p)));
+      }
+      return;
+    }
+
+    // Check if we dropped onto another player (swap)
+    const targetPlayer = players.find((p) => p.id === dropTarget);
+    if (targetPlayer && targetPlayer.team_id) {
+      // Swap: dragged player goes to target's team, target goes to dragged's team
+      const dragTeam = draggedPlayer.team_id;
+      const targetTeam = targetPlayer.team_id;
+      if (dragTeam === targetTeam) return; // same team, no-op
+
+      setPlayers((prev) => prev.map((p) => {
+        if (p.id === playerId) return { ...p, team_id: targetTeam };
+        if (p.id === dropTarget) return { ...p, team_id: dragTeam };
+        return p;
+      }));
+
+      const [err1, err2] = await Promise.all([
+        supabase.from("players").update({ team_id: targetTeam }).eq("id", playerId),
+        supabase.from("players").update({ team_id: dragTeam }).eq("id", dropTarget),
+      ]);
+
+      if (err1.error || err2.error) {
+        setError("Swap failed. Reverting.");
+        setPlayers((prev) => prev.map((p) => {
+          if (p.id === playerId) return { ...p, team_id: dragTeam };
+          if (p.id === dropTarget) return { ...p, team_id: targetTeam };
+          return p;
+        }));
+      }
+      return;
+    }
+
+    // Dropped onto a team card
+    const teamId = dropTarget;
     const targetPlayers = teamPlayerMap.get(teamId) ?? [];
     if (targetPlayers.length >= maxPlayerSlots) return;
 
-    // Optimistic update
-    const previousTeamId =
-      players.find((p) => p.id === playerId)?.team_id ?? null;
-    setPlayers((prev) =>
-      prev.map((p) => (p.id === playerId ? { ...p, team_id: teamId } : p))
-    );
+    const previousTeamId = draggedPlayer.team_id;
+    setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, team_id: teamId } : p)));
 
-    const { error: updateErr } = await supabase
-      .from("players")
-      .update({ team_id: teamId })
-      .eq("id", playerId);
-
+    const { error: updateErr } = await supabase.from("players").update({ team_id: teamId }).eq("id", playerId);
     if (updateErr) {
       setError(updateErr.message);
-      // Revert on error
-      setPlayers((prev) =>
-        prev.map((p) =>
-          p.id === playerId ? { ...p, team_id: previousTeamId } : p
-        )
-      );
+      setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, team_id: previousTeamId } : p)));
     }
+  }
+
+  // Long-press: move player to another tournament
+  async function handleMoveTournament(player: Player, targetTournamentId: string) {
+    if (targetTournamentId === tournamentId) { setLongPressPlayer(null); return; }
+
+    // Unassign from current team and move to the other tournament's pool
+    // We just set team_id = null. The player's age_group determines which tournament pool they appear in.
+    // If moving across age groups we'd need to change age_group too, but for now just unassign.
+    setPlayers((prev) => prev.filter((p) => p.id !== player.id));
+    setLongPressPlayer(null);
+
+    await supabase.from("players").update({ team_id: null }).eq("id", player.id);
   }
 
   // ── Mentor assignment ─────────────────────────────────
@@ -577,30 +654,12 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {/* Unassigned pool */}
-        <Card className="rounded-2xl shadow-md border-dashed">
-          <CardHeader className="px-4 pb-2 pt-4">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm font-black">Unassigned Players</CardTitle>
-              <Badge variant="secondary" className="text-xs font-bold">
-                {unassigned.length}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="min-h-[80px] px-4 pb-4">
-            {unassigned.length === 0 ? (
-              <p className="py-5 text-center text-xs text-muted-foreground">
-                All players assigned
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {unassigned.map((p) => (
-                  <PlayerAvatar key={p.id} player={p} colour={colour} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Unassigned pool (droppable) */}
+        <UnassignedPool
+          unassigned={unassigned}
+          colour={colour}
+          onLongPress={setLongPressPlayer}
+        />
 
         {/* Teams grid */}
         {teams.length === 0 ? (
@@ -621,6 +680,7 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
                 mentors={mentors}
                 assignedMentorIds={assignedMentorIds}
                 onMentorChange={handleMentorChange}
+                onLongPress={setLongPressPlayer}
               />
             ))}
           </div>
@@ -649,6 +709,84 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
           "+ New Team"
         )}
       </Button>
+
+      {/* Long-press: move to another tournament */}
+      {longPressPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6">
+          <div className="w-full max-w-sm rounded-2xl bg-background p-5 shadow-xl space-y-4">
+            <h3 className="text-base font-black text-foreground">
+              Move {longPressPlayer.first_name} {longPressPlayer.last_name}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Move to another tournament&apos;s unassigned pool:
+            </p>
+            <div className="space-y-2">
+              {allTournaments
+                .filter((t) => t.id !== tournamentId)
+                .map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleMoveTournament(longPressPlayer, t.id)}
+                    className="w-full h-12 rounded-xl border-2 border-border text-sm font-bold text-foreground active:scale-[0.98] transition-transform hover:bg-muted"
+                  >
+                    {t.name} ({t.colour})
+                  </button>
+                ))}
+            </div>
+            <button
+              onClick={() => setLongPressPlayer(null)}
+              className="w-full h-12 rounded-xl text-sm font-bold text-muted-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ── UnassignedPool — droppable zone ────────────────────────
+
+function UnassignedPool({
+  unassigned,
+  colour,
+  onLongPress,
+}: {
+  unassigned: Player[];
+  colour: TournamentColour;
+  onLongPress: (p: Player) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: "unassigned-pool" });
+
+  return (
+    <Card
+      ref={setNodeRef}
+      className={`rounded-2xl shadow-md border-dashed transition-all ${
+        isOver ? "ring-2 ring-amber-400 bg-amber-50/30" : ""
+      }`}
+    >
+      <CardHeader className="px-4 pb-2 pt-4">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-black">Unassigned Players</CardTitle>
+          <Badge variant="secondary" className="text-xs font-bold">
+            {unassigned.length}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="min-h-[80px] px-4 pb-4">
+        {unassigned.length === 0 ? (
+          <p className="py-5 text-center text-xs text-muted-foreground">
+            {isOver ? "Drop here to unassign" : "All players assigned"}
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {unassigned.map((p) => (
+              <PlayerAvatar key={p.id} player={p} colour={colour} onLongPress={onLongPress} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
