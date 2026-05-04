@@ -160,6 +160,7 @@ export default function ScorePage() {
   const [resetting, setResetting] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   // Phase / flow state
   const [phase, setPhase] = useState<Phase>("team_a_setup");
@@ -1212,7 +1213,7 @@ export default function ScorePage() {
   // ── Main scoring render ────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto max-w-md min-h-screen bg-background pb-10">
+    <div className="mx-auto max-w-md h-screen bg-background flex flex-col overflow-hidden">
       {/* Error toast */}
       {error && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-lg">
@@ -1223,254 +1224,111 @@ export default function ScorePage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-cricket px-4 pt-6 pb-4">
-        <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
-          {scoringTeamName} Batting
-        </p>
-        <div className="flex items-end gap-4">
-          <span className="text-5xl font-black tracking-tight text-cricket-foreground">
-            {scoringState.runs}/{scoringState.wickets}
-          </span>
-          <div className="mb-1">
-            <p className="text-xs text-cricket-foreground/70 font-semibold">
-              Net Score
-            </p>
-            <p className="text-xl font-black text-cricket-foreground">
-              {scoringNetScore}
-            </p>
+      {/* Compact header */}
+      <div className="bg-cricket px-4 py-3 flex items-center justify-between shrink-0">
+        <div>
+          <p className="text-cricket-foreground/70 text-[10px] font-bold uppercase tracking-widest">
+            {scoringTeamName} · Over {scoringOver}/4 · {scoringOver <= 2 ? "Pair 1" : "Pair 2"}
+          </p>
+          <div className="flex items-baseline gap-3">
+            <span className="text-4xl font-black tracking-tight text-cricket-foreground">
+              {scoringState.runs}/{scoringState.wickets}
+            </span>
+            <span className="text-lg font-black text-cricket-foreground/80">
+              Net {scoringNetScore}
+            </span>
           </div>
         </div>
-        <p className="text-xs text-cricket-foreground/70 mt-1">
-          100 + {scoringState.runs} - {scoringState.wickets * 6} = {scoringNetScore}
-        </p>
+        {/* Menu button */}
+        <button
+          onClick={() => setShowMenu(!showMenu)}
+          className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-white/80"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01" />
+          </svg>
+        </button>
       </div>
 
-      <div className="px-4 pt-4 space-y-4">
-        {/* Over / pair / bowler info */}
-        <Card className="rounded-2xl shadow-md">
-          <CardContent className="px-5 py-4 space-y-1">
-            <p className="text-sm font-bold text-foreground">
-              Over {scoringOver} of 4
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {scoringOver <= 2 ? "Pair 1" : "Pair 2"}:{" "}
-              {pairPlayers.map((p) => p.first_name).join(" & ")}
-            </p>
-            {bowlerPlayer && (
-              <p className="text-sm text-muted-foreground">
-                {playerName(bowlerPlayer)} bowling
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* This Over — progressively filled circles */}
-        <div className="space-y-2">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-            This Over
-          </p>
-          <div className="flex gap-2">
-            {[0, 1, 2, 3, 4, 5].map((i) => {
-              const label = currentOverBalls[i];
-              if (label) {
-                return (
-                  <span
-                    key={i}
-                    className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-black ${badgeStyle(label)}`}
-                  >
-                    {label}
-                  </span>
-                );
-              }
-              // Empty slot
-              return (
-                <span
-                  key={i}
-                  className="h-10 w-10 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300"
-                />
-              );
-            })}
-          </div>
+      {/* This Over — compact row */}
+      <div className="px-4 py-2 flex items-center gap-2 border-b border-border shrink-0">
+        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">Over</span>
+        <div className="flex gap-1.5">
+          {[0, 1, 2, 3, 4, 5].map((i) => {
+            const label = currentOverBalls[i];
+            return label ? (
+              <span key={i} className={`h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-black ${badgeStyle(label)}`}>
+                {label}
+              </span>
+            ) : (
+              <span key={i} className="h-8 w-8 rounded-full border-2 border-dashed border-gray-300" />
+            );
+          })}
         </div>
+      </div>
 
-        {/* Transition card (if any) */}
-        {transition && renderTransition()}
-
-        {/* Scoring buttons — hidden during transitions */}
-        {!transition && !inningsComplete && (
-          <>
-            {/* Run buttons */}
-            <Card className="rounded-2xl shadow-md">
-              <CardContent className="px-4 py-5">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
-                  Runs
-                </p>
-                <div className="grid grid-cols-3 gap-3 place-items-center">
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 0 })}
-                    className="h-20 w-20 rounded-full bg-gray-200 text-gray-600 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-                  >
-                    0
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 1 })}
-                    className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-                  >
-                    1
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 2 })}
-                    className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-                  >
-                    2
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 3 })}
-                    className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-                  >
-                    3
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 4 })}
-                    className="h-20 w-20 rounded-full bg-cricket text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow-md"
-                  >
-                    4
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 6 })}
-                    className="h-20 w-20 rounded-full bg-cricket text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow-md"
-                  >
-                    6
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Wicket button */}
-            <button
-              disabled={saving}
-              onClick={() => insertEvent({ runs: 0, isWicket: true })}
-              className="w-full h-16 rounded-2xl bg-red-500 text-white text-xl font-black tracking-tight active:scale-[0.98] transition-transform disabled:opacity-50 shadow-md"
-            >
-              WICKET (-6 runs)
-            </button>
-
-            {/* Extras */}
-            <Card className="rounded-2xl shadow-md">
-              <CardContent className="px-4 py-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">
-                  Extras
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    disabled={saving}
-                    onClick={() =>
-                      insertEvent({ runs: 2, extraType: "wide" })
-                    }
-                    className="h-14 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
-                  >
-                    Wide
-                    <span className="block text-xs font-semibold">
-                      +2 runs, counts as ball
-                    </span>
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() =>
-                      insertEvent({ runs: 2, extraType: "no_ball" })
-                    }
-                    className="h-14 rounded-xl bg-orange-100 text-orange-800 border border-orange-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
-                  >
-                    No Ball
-                    <span className="block text-xs font-semibold">
-                      +2 runs, counts as ball
-                    </span>
-                  </button>
-                </div>
-
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-4 mb-3">
-                  Byes / Leg Byes
-                </p>
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 1, extraType: "bye" })}
-                    className="h-14 rounded-xl bg-blue-100 text-blue-800 border border-blue-300 text-lg font-black active:scale-95 transition-transform disabled:opacity-50"
-                  >
-                    1 Bye
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 2, extraType: "bye" })}
-                    className="h-14 rounded-xl bg-blue-100 text-blue-800 border border-blue-300 text-lg font-black active:scale-95 transition-transform disabled:opacity-50"
-                  >
-                    2 Byes
-                  </button>
-                  <button
-                    disabled={saving}
-                    onClick={() => insertEvent({ runs: 4, extraType: "bye" })}
-                    className="h-14 rounded-xl bg-blue-100 text-blue-800 border border-blue-300 text-lg font-black active:scale-95 transition-transform disabled:opacity-50"
-                  >
-                    4 Byes
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Undo — big fat-finger friendly button */}
-            <button
-              disabled={saving}
-              onClick={undoLast}
-              className="w-full h-14 rounded-2xl bg-amber-500 text-white text-base font-black tracking-tight flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50 shadow-md"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-                />
-              </svg>
-              UNDO LAST BALL
-            </button>
-
-            {/* Leave match — release lock, keep data */}
+      {/* Menu overlay */}
+      {showMenu && (
+        <div className="absolute inset-0 z-40 bg-black/50 flex items-center justify-center px-6" onClick={() => setShowMenu(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-background p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={async () => {
-                await supabase.from("matches").update({
-                  locked_by: null, locked_by_name: null, locked_at: null,
-                }).eq("id", matchId);
+                setShowMenu(false);
+                await supabase.from("matches").update({ locked_by: null, locked_by_name: null, locked_at: null }).eq("id", matchId);
                 window.location.href = "/fixtures";
               }}
-              className="w-full h-12 rounded-2xl border-2 border-border text-muted-foreground text-sm font-bold active:scale-[0.98] transition-transform"
+              className="w-full h-12 rounded-xl border-2 border-border text-sm font-bold text-muted-foreground active:scale-[0.98] transition-transform"
             >
               Leave Match (scores saved)
             </button>
-
-            {/* Reset match button */}
             <button
-              onClick={() => { setResetConfirmText(""); setShowResetDialog(true); }}
-              className="w-full h-12 rounded-2xl border-2 border-destructive text-destructive text-sm font-bold active:scale-[0.98] transition-transform"
+              onClick={() => { setShowMenu(false); setResetConfirmText(""); setShowResetDialog(true); }}
+              className="w-full h-12 rounded-xl border-2 border-destructive text-destructive text-sm font-bold active:scale-[0.98] transition-transform"
             >
               Reset Match
             </button>
-          </>
-        )}
+            <button onClick={() => setShowMenu(false)} className="w-full h-12 text-sm font-bold text-muted-foreground">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
-        {/* Reset confirmation dialog */}
-        {showResetDialog && (
+      {/* Transition card (if any) */}
+      {transition && <div className="px-4 pt-3 shrink-0">{renderTransition()}</div>}
+
+      {/* Scoring buttons — single screen, no scroll */}
+      {!transition && !inningsComplete && (
+        <div className="flex-1 px-4 py-3 flex flex-col gap-2">
+          {/* Run buttons — compact grid */}
+          <div className="grid grid-cols-6 gap-2 place-items-center">
+            <button disabled={saving} onClick={() => insertEvent({ runs: 0 })} className="h-14 w-14 rounded-full bg-gray-200 text-gray-600 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">0</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 1 })} className="h-14 w-14 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">1</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2 })} className="h-14 w-14 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">2</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 3 })} className="h-14 w-14 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">3</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 4 })} className="h-14 w-14 rounded-full bg-cricket text-white text-xl font-black active:scale-90 transition-transform disabled:opacity-50">4</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 6 })} className="h-14 w-14 rounded-full bg-cricket text-white text-xl font-black active:scale-90 transition-transform disabled:opacity-50">6</button>
+          </div>
+
+          {/* Wicket + Undo row */}
+          <div className="grid grid-cols-2 gap-2">
+            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="h-12 rounded-xl bg-red-500 text-white text-sm font-black active:scale-95 transition-transform disabled:opacity-50 shadow">WICKET</button>
+            <button disabled={saving} onClick={undoLast} className="h-12 rounded-xl bg-amber-500 text-white text-sm font-black active:scale-95 transition-transform disabled:opacity-50 shadow">UNDO</button>
+          </div>
+
+          {/* Extras — single row */}
+          <div className="grid grid-cols-5 gap-1.5">
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "wide" })} className="h-11 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">Wide</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "no_ball" })} className="h-11 rounded-lg bg-orange-100 text-orange-800 border border-orange-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">No Ball</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 1, extraType: "bye" })} className="h-11 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">1 Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "bye" })} className="h-11 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">2 Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 4, extraType: "bye" })} className="h-11 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">4 Bye</button>
+          </div>
+        </div>
+      )}
+
+      {/* Reset confirmation dialog */}
+      {showResetDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6">
             <div className="w-full max-w-sm rounded-2xl bg-background p-6 shadow-xl space-y-4">
               <h3 className="text-lg font-black text-destructive">Reset Match?</h3>
@@ -1505,7 +1363,6 @@ export default function ScorePage() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }
