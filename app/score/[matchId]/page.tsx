@@ -269,7 +269,7 @@ export default function ScorePage() {
         if (existingLocks && existingLocks.length > 0) {
           const otherMatch = existingLocks[0] as any;
           const otherName = `${otherMatch.team_a?.name ?? "?"} vs ${otherMatch.team_b?.name ?? "?"}`;
-          setError(`You are already scoring "${otherName}". Submit or leave that match before starting another.`);
+          setError("Only one game can be scored at a time. Ensure the last game is finished and the score submitted before attempting to score a new match.");
           setMatch(m);
           setLoading(false);
           return;
