@@ -120,14 +120,6 @@ function PlayerAvatar({
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: player.id });
 
-  // Tap detection: click fires only if we didn't drag
-  function handleClick() {
-    // isDragging is true if dnd-kit activated a drag — if so, ignore the click
-    if (!isDragging) {
-      onLongPress?.(player);
-    }
-  }
-
   const styles = COLOUR_STYLES[colour];
 
   const avatar = (
@@ -164,10 +156,18 @@ function PlayerAvatar({
       ref={(node) => { setDragRef(node); setDropRef(node); }}
       {...listeners}
       {...attributes}
-      onClick={handleClick}
       className="cursor-grab touch-none transition-transform active:scale-110"
     >
       {avatar}
+      {!overlay && onLongPress && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onLongPress(player); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="mt-0.5 text-[9px] font-bold text-muted-foreground hover:text-primary"
+        >
+          Move
+        </button>
+      )}
     </div>
   );
 }
@@ -523,13 +523,22 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
   async function handleMoveTournament(player: Player, targetTournamentId: string) {
     if (targetTournamentId === tournamentId) { setLongPressPlayer(null); return; }
 
-    // Unassign from current team and move to the other tournament's pool
-    // We just set team_id = null. The player's age_group determines which tournament pool they appear in.
-    // If moving across age groups we'd need to change age_group too, but for now just unassign.
-    setPlayers((prev) => prev.filter((p) => p.id !== player.id));
     setLongPressPlayer(null);
 
-    await supabase.from("players").update({ team_id: null }).eq("id", player.id);
+    // Unassign from current team — the player will appear in the target
+    // tournament's balancer based on their school year
+    const { error: err } = await supabase
+      .from("players")
+      .update({ team_id: null })
+      .eq("id", player.id);
+
+    if (err) {
+      setError(`Failed to move player: ${err.message}`);
+      return;
+    }
+
+    // Remove from local state so UI updates immediately
+    setPlayers((prev) => prev.filter((p) => p.id !== player.id));
   }
 
   // ── Mentor assignment ─────────────────────────────────
