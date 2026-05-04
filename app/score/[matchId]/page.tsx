@@ -1427,6 +1427,19 @@ export default function ScorePage() {
               UNDO LAST BALL
             </button>
 
+            {/* Leave match — release lock, keep data */}
+            <button
+              onClick={async () => {
+                await supabase.from("matches").update({
+                  locked_by: null, locked_by_name: null, locked_at: null,
+                }).eq("id", matchId);
+                window.location.href = "/fixtures";
+              }}
+              className="w-full h-12 rounded-2xl border-2 border-border text-muted-foreground text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              Leave Match (scores saved)
+            </button>
+
             {/* Reset match button */}
             <button
               onClick={() => { setResetConfirmText(""); setShowResetDialog(true); }}
