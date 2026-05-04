@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { calculateMatchScore } from "@/lib/tournament-logic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,10 @@ interface Match {
   id: string;
   team_a_id: string;
   team_b_id: string;
+  score_a: number;
+  score_b: number;
+  wickets_a: number;
+  wickets_b: number;
   team_a: Team;
   team_b: Team;
   status: boolean;
@@ -60,6 +65,10 @@ export default function MatchEventsPage() {
   const [editWicket, setEditWicket] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
 
+  // Recalculate
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcResult, setRecalcResult] = useState<string | null>(null);
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -75,7 +84,7 @@ export default function MatchEventsPage() {
 
       const { data: matchData } = await supabase
         .from("matches")
-        .select("id, team_a_id, team_b_id, status, team_a:teams!team_a_id(id, name), team_b:teams!team_b_id(id, name)")
+        .select("id, team_a_id, team_b_id, score_a, score_b, wickets_a, wickets_b, status, team_a:teams!team_a_id(id, name), team_b:teams!team_b_id(id, name)")
         .eq("id", matchId)
         .single();
 
@@ -123,6 +132,76 @@ export default function MatchEventsPage() {
     }
     setEditSaving(false);
     setEditEvent(null);
+  }
+
+  async function handleRecalculate() {
+    if (!match) return;
+    setRecalculating(true);
+    setRecalcResult(null);
+    setError(null);
+
+    // Recalculate from events
+    const aEvents = events.filter((e) => e.team_id === match.team_a_id);
+    const bEvents = events.filter((e) => e.team_id === match.team_b_id);
+
+    const runsA = aEvents.reduce((s, e) => s + e.runs, 0);
+    const wicketsA = aEvents.filter((e) => e.is_wicket).length;
+    const runsB = bEvents.reduce((s, e) => s + e.runs, 0);
+    const wicketsB = bEvents.filter((e) => e.is_wicket).length;
+
+    const netA = calculateMatchScore(runsA, wicketsA);
+    const netB = calculateMatchScore(runsB, wicketsB);
+
+    // Update match scores
+    const { error: updateErr } = await supabase
+      .from("matches")
+      .update({ score_a: runsA, score_b: runsB, wickets_a: wicketsA, wickets_b: wicketsB })
+      .eq("id", matchId);
+
+    if (updateErr) {
+      setError(updateErr.message);
+      setRecalculating(false);
+      return;
+    }
+
+    // If match is complete, recalculate team points
+    if (match.status) {
+      // First, remove old points contribution from this match
+      // We need to fetch current team points and subtract old, add new
+      const [teamARes, teamBRes] = await Promise.all([
+        supabase.from("teams").select("points, total_runs").eq("id", match.team_a_id).single(),
+        supabase.from("teams").select("points, total_runs").eq("id", match.team_b_id).single(),
+      ]);
+
+      // Calculate old points from old match data
+      const oldNetA = calculateMatchScore(match.score_a ?? 0, match.wickets_a ?? 0);
+      const oldNetB = calculateMatchScore(match.score_b ?? 0, match.wickets_b ?? 0);
+      let oldPtsA = 0, oldPtsB = 0;
+      if (oldNetA > oldNetB) { oldPtsA = 3; } else if (oldNetB > oldNetA) { oldPtsB = 3; } else { oldPtsA = 1; oldPtsB = 1; }
+
+      // Calculate new points
+      let newPtsA = 0, newPtsB = 0;
+      if (netA > netB) { newPtsA = 3; } else if (netB > netA) { newPtsB = 3; } else { newPtsA = 1; newPtsB = 1; }
+
+      // Apply delta
+      await Promise.all([
+        supabase.from("teams").update({
+          points: Math.max(0, (teamARes.data?.points ?? 0) - oldPtsA + newPtsA),
+          total_runs: Math.max(0, (teamARes.data?.total_runs ?? 0) - (match.score_a ?? 0) + runsA),
+        }).eq("id", match.team_a_id),
+        supabase.from("teams").update({
+          points: Math.max(0, (teamBRes.data?.points ?? 0) - oldPtsB + newPtsB),
+          total_runs: Math.max(0, (teamBRes.data?.total_runs ?? 0) - (match.score_b ?? 0) + runsB),
+        }).eq("id", match.team_b_id),
+      ]);
+    }
+
+    // Update local match state
+    setMatch({ ...match, score_a: runsA, score_b: runsB, wickets_a: wicketsA, wickets_b: wicketsB } as any);
+
+    const winner = netA > netB ? match.team_a.name : netB > netA ? match.team_b.name : "Draw";
+    setRecalcResult(`Updated: ${match.team_a.name} ${runsA}/${wicketsA} (Net ${netA}) vs ${match.team_b.name} ${runsB}/${wicketsB} (Net ${netB}) — ${winner === "Draw" ? "Draw" : `${winner} wins`}`);
+    setRecalculating(false);
   }
 
   function ballLabel(e: MatchEvent): string {
@@ -232,6 +311,24 @@ export default function MatchEventsPage() {
 
       {error && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</div>
+      )}
+
+      {/* Recalculate button */}
+      {match && (
+        <div className="space-y-2">
+          <button
+            onClick={handleRecalculate}
+            disabled={recalculating}
+            className="w-full h-14 rounded-2xl bg-cricket text-white text-base font-black active:scale-[0.98] transition-transform disabled:opacity-50 shadow-md"
+          >
+            {recalculating ? "Recalculating..." : "Recalculate & Update Scores"}
+          </button>
+          {recalcResult && (
+            <div className="rounded-xl bg-cricket/5 border border-cricket/20 px-4 py-3 text-sm font-semibold text-cricket">
+              {recalcResult}
+            </div>
+          )}
+        </div>
       )}
 
       {match && renderInnings(match.team_a.name, teamAEvents)}
