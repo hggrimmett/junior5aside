@@ -34,6 +34,8 @@ interface MatchRow {
   status: boolean;
   scheduled_time: string | null;
   match_type: string | null;
+  locked_by: string | null;
+  locked_by_name: string | null;
 }
 
 type MatchStatus = "upcoming" | "live" | "completed";
@@ -141,7 +143,7 @@ export default function FixturesPage() {
       supabase
         .from("matches")
         .select(
-          "id, tournament_id, team_a:teams!team_a_id(id, name, mentor_id), team_b:teams!team_b_id(id, name, mentor_id), score_a, score_b, wickets_a, wickets_b, status, scheduled_time, match_type"
+          "id, tournament_id, team_a:teams!team_a_id(id, name, mentor_id), team_b:teams!team_b_id(id, name, mentor_id), score_a, score_b, wickets_a, wickets_b, status, scheduled_time, match_type, locked_by, locked_by_name"
         )
         .order("scheduled_time", { ascending: true, nullsFirst: false })
         .returns<MatchRow[]>(),
@@ -420,6 +422,13 @@ function MatchCard({
               >
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                 Live
+              </span>
+            )}
+
+            {/* Locked by indicator (for admins) */}
+            {match.locked_by_name && !isCompleted && isSuperadminOrCoach && (
+              <span className="text-[10px] font-semibold text-amber-600">
+                Scoring: {match.locked_by_name}
               </span>
             )}
 

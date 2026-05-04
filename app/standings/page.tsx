@@ -4,10 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   getLeagueTable,
-  getLeadingRunScorer,
-  getTopWicketTaker,
   TeamStanding,
-  TeamMatchStats,
 } from "@/lib/tournament-logic";
 import {
   Card,
@@ -32,6 +29,12 @@ interface Tournament {
 interface TeamRow {
   id: string;
   name: string;
+}
+
+interface PlayerStat {
+  playerId: string;
+  name: string;
+  value: number;
 }
 
 interface TabConfig {
@@ -99,12 +102,9 @@ export default function StandingsPage() {
     Record<TournamentColour, TeamStanding[]>
   >({ Green: [], Red: [], Blue: [] });
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
-  const [topScorers, setTopScorers] = useState<
-    Record<TournamentColour, TeamMatchStats | null>
-  >({ Green: null, Red: null, Blue: null });
-  const [topWicketTakers, setTopWicketTakers] = useState<
-    Record<TournamentColour, TeamMatchStats | null>
-  >({ Green: null, Red: null, Blue: null });
+  const [topBatters, setTopBatters] = useState<Record<TournamentColour, PlayerStat[]>>({ Green: [], Red: [], Blue: [] });
+  const [topBowlers, setTopBowlers] = useState<Record<TournamentColour, PlayerStat[]>>({ Green: [], Red: [], Blue: [] });
+  const [allMatchesComplete, setAllMatchesComplete] = useState<Record<TournamentColour, boolean>>({ Green: false, Red: false, Blue: false });
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -146,15 +146,20 @@ export default function StandingsPage() {
       Red:   [],
       Blue:  [],
     };
-    const nextScorers: Record<TournamentColour, TeamMatchStats | null> = {
-      Green: null,
-      Red:   null,
-      Blue:  null,
+    const nextBatters: Record<TournamentColour, PlayerStat[]> = {
+      Green: [],
+      Red:   [],
+      Blue:  [],
     };
-    const nextWicketTakers: Record<TournamentColour, TeamMatchStats | null> = {
-      Green: null,
-      Red:   null,
-      Blue:  null,
+    const nextBowlers: Record<TournamentColour, PlayerStat[]> = {
+      Green: [],
+      Red:   [],
+      Blue:  [],
+    };
+    const nextAllComplete: Record<TournamentColour, boolean> = {
+      Green: false,
+      Red:   false,
+      Blue:  false,
     };
 
     await Promise.all(
@@ -162,14 +167,83 @@ export default function StandingsPage() {
         const t = tournaments[group];
         if (!t) return;
         try {
-          const [table, scorer, wicketTaker] = await Promise.all([
+          // Fetch league table and all match statuses in parallel
+          const [table, matchesRes] = await Promise.all([
             getLeagueTable(supabase, t.id),
-            getLeadingRunScorer(supabase, t.id),
-            getTopWicketTaker(supabase, t.id),
+            supabase.from("matches").select("id, status").eq("tournament_id", t.id),
           ]);
-          next[group]             = table;
-          nextScorers[group]      = scorer;
-          nextWicketTakers[group] = wicketTaker;
+          next[group] = table;
+
+          const allMatches = matchesRes.data ?? [];
+          const total = allMatches.length;
+          const completed = allMatches.filter((m) => m.status).length;
+          nextAllComplete[group] = total > 0 && completed === total;
+
+          // Fetch player stats from completed matches
+          const completedMatchIds = allMatches
+            .filter((m) => m.status)
+            .map((m) => m.id);
+
+          if (completedMatchIds.length > 0) {
+            const eventsRes = await supabase
+              .from("match_events")
+              .select("batter_id, bowler_id, runs, is_wicket, extra_type")
+              .in("match_id", completedMatchIds);
+
+            const events = eventsRes.data ?? [];
+
+            // Top run scorers: sum runs where extra_type IS NULL (bat runs only)
+            const runMap: Record<string, number> = {};
+            for (const ev of events) {
+              if (ev.extra_type == null && ev.batter_id) {
+                runMap[ev.batter_id] = (runMap[ev.batter_id] ?? 0) + (ev.runs ?? 0);
+              }
+            }
+
+            // Top wicket takers: count is_wicket = true per bowler
+            const wicketMap: Record<string, number> = {};
+            for (const ev of events) {
+              if (ev.is_wicket && ev.bowler_id) {
+                wicketMap[ev.bowler_id] = (wicketMap[ev.bowler_id] ?? 0) + 1;
+              }
+            }
+
+            // Collect all relevant player IDs
+            const allPlayerIds = Array.from(
+              new Set([...Object.keys(runMap), ...Object.keys(wicketMap)])
+            );
+
+            // Fetch player names
+            const playersRes = await supabase
+              .from("players")
+              .select("id, first_name, last_name")
+              .in("id", allPlayerIds);
+
+            const playerNameMap: Record<string, string> = {};
+            for (const p of playersRes.data ?? []) {
+              playerNameMap[p.id] = `${p.first_name} ${p.last_name}`.trim();
+            }
+
+            // Build sorted top-3 batters
+            nextBatters[group] = Object.entries(runMap)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .map(([playerId, value]) => ({
+                playerId,
+                name: playerNameMap[playerId] ?? playerId,
+                value,
+              }));
+
+            // Build sorted top-3 bowlers
+            nextBowlers[group] = Object.entries(wicketMap)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .map(([playerId, value]) => ({
+                playerId,
+                name: playerNameMap[playerId] ?? playerId,
+                value,
+              }));
+          }
         } catch {
           // leave empty on error
         }
@@ -177,8 +251,9 @@ export default function StandingsPage() {
     );
 
     setStandings(next);
-    setTopScorers(nextScorers);
-    setTopWicketTakers(nextWicketTakers);
+    setTopBatters(nextBatters);
+    setTopBowlers(nextBowlers);
+    setAllMatchesComplete(nextAllComplete);
     setLastUpdated(new Date());
     setLoading(false);
   }, [supabase, tournaments]);
@@ -327,54 +402,130 @@ export default function StandingsPage() {
             ) : (
               <>
                 {/* ── Finalists ─────────────────────── */}
-                {standings[t.key].slice(0, 2).length >= 2 && (
-                  <Card
-                    className={`
-                      rounded-2xl shadow-md overflow-hidden
-                      ${TAB_STYLE[t.key].finalistBorder}
-                    `}
-                  >
+                {allMatchesComplete[t.key] ? (
+                  standings[t.key].slice(0, 2).length >= 2 && (
+                    <Card
+                      className={`
+                        rounded-2xl shadow-md overflow-hidden
+                        ${TAB_STYLE[t.key].finalistBorder}
+                      `}
+                    >
+                      <CardHeader className="px-4 pt-4 pb-2">
+                        <div className="flex items-center gap-2">
+                          <svg
+                            className="h-4 w-4 text-amber-400"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 1l2.928 6.856L20 8.59l-5.072 4.572L16.18 20 10 16.284 3.82 20l1.252-6.838L0 8.59l7.072-.734L10 1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <CardTitle className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground">
+                            Finalists
+                          </CardTitle>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 space-y-2">
+                        {standings[t.key].slice(0, 2).map((team, i) => (
+                          <div
+                            key={team.teamId}
+                            className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-3 py-3 shadow-sm"
+                          >
+                            <span
+                              className={`
+                                flex h-8 w-8 shrink-0 items-center justify-center
+                                rounded-full text-sm font-black
+                                ${TAB_STYLE[t.key].finalistRankBg}
+                              `}
+                            >
+                              {i + 1}
+                            </span>
+                            <p className="flex-1 truncate text-sm font-bold text-foreground">
+                              {teamNames[team.teamId] ?? team.teamId}
+                              {tiedTeamIds.has(team.teamId) && <WineAlert />}
+                            </p>
+                            <Badge
+                              className={`${TAB_STYLE[t.key].rankBadge} text-xs font-bold px-2`}
+                            >
+                              {team.totalPoints} pts
+                            </Badge>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )
+                ) : (
+                  <Card className="rounded-2xl shadow-md overflow-hidden">
+                    <CardContent className="flex items-center gap-3 px-4 py-4">
+                      <svg
+                        className="h-4 w-4 shrink-0 text-muted-foreground"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      <p className="text-xs text-muted-foreground">
+                        Finalists confirmed when all matches are complete
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* ── Top Run Scorers ───────────────── */}
+                {topBatters[t.key].length > 0 && (
+                  <Card className="rounded-2xl shadow-md overflow-hidden">
                     <CardHeader className="px-4 pt-4 pb-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <svg
-                          className="h-4 w-4 text-amber-400"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
+                          className="h-3.5 w-3.5 shrink-0 text-amber-500"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                         >
-                          <path
-                            fillRule="evenodd"
-                            d="M10 1l2.928 6.856L20 8.59l-5.072 4.572L16.18 20 10 16.284 3.82 20l1.252-6.838L0 8.59l7.072-.734L10 1z"
-                            clipRule="evenodd"
-                          />
+                          <path d="M4 20L18 6" />
+                          <path d="M14 4l6 6" />
+                          <path d="M18 6l-4-4" />
+                          <circle cx="4.5" cy="19.5" r="1.5" fill="currentColor" stroke="none" />
                         </svg>
-                        <CardTitle className="text-xs font-extrabold uppercase tracking-widest text-muted-foreground">
-                          Finalists
+                        <CardTitle className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground leading-tight">
+                          Top Run Scorers
                         </CardTitle>
                       </div>
                     </CardHeader>
-                    <CardContent className="px-4 pb-4 space-y-2">
-                      {standings[t.key].slice(0, 2).map((team, i) => (
+                    <CardContent className="px-4 pb-4 space-y-1.5">
+                      {topBatters[t.key].map((player, i) => (
                         <div
-                          key={team.teamId}
-                          className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-3 py-3 shadow-sm"
+                          key={player.playerId}
+                          className="flex items-center gap-2.5"
                         >
                           <span
                             className={`
-                              flex h-8 w-8 shrink-0 items-center justify-center
-                              rounded-full text-sm font-black
-                              ${TAB_STYLE[t.key].finalistRankBg}
+                              flex h-5 w-5 shrink-0 items-center justify-center
+                              rounded-full text-[10px] font-black
+                              ${i === 0
+                                ? TAB_STYLE[t.key].rankBadge
+                                : TAB_STYLE[t.key].rankBadgeInactive
+                              }
                             `}
                           >
                             {i + 1}
                           </span>
-                          <p className="flex-1 truncate text-sm font-bold text-foreground">
-                            {teamNames[team.teamId] ?? team.teamId}
-                            {tiedTeamIds.has(team.teamId) && <WineAlert />}
-                          </p>
-                          <Badge
-                            className={`${TAB_STYLE[t.key].rankBadge} text-xs font-bold px-2`}
-                          >
-                            {team.totalPoints} pts
+                          <span className="flex-1 truncate text-xs font-semibold text-foreground">
+                            {player.name}
+                          </span>
+                          <Badge className={`${TAB_STYLE[t.key].rankBadge} text-[10px] font-bold px-1.5 py-0`}>
+                            {player.value} runs
                           </Badge>
                         </div>
                       ))}
@@ -382,87 +533,58 @@ export default function StandingsPage() {
                   </Card>
                 )}
 
-                {/* ── Run Scorer / Wicket Taker ─────── */}
-                {(topScorers[t.key] || topWicketTakers[t.key]) && (
-                  <div className="grid grid-cols-2 gap-3">
-
-                    {topScorers[t.key] && (
-                      <Card className="rounded-2xl shadow-md overflow-hidden">
-                        <CardHeader className="px-4 pt-4 pb-1">
-                          <div className="flex items-center gap-1.5">
-                            <svg
-                              className="h-3.5 w-3.5 shrink-0 text-amber-500"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M4 20L18 6" />
-                              <path d="M14 4l6 6" />
-                              <path d="M18 6l-4-4" />
-                              <circle cx="4.5" cy="19.5" r="1.5" fill="currentColor" stroke="none" />
-                            </svg>
-                            <CardTitle className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground leading-tight">
-                              Leading Run Scorer
-                            </CardTitle>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                          <p className="truncate text-xs font-bold text-foreground">
-                            {teamNames[topScorers[t.key]!.teamId] ??
-                              topScorers[t.key]!.teamId}
-                          </p>
-                          <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">
-                            {topScorers[t.key]!.totalRuns}
-                            <span className="ml-1 text-xs font-medium text-muted-foreground">
-                              runs
-                            </span>
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {topWicketTakers[t.key] && (
-                      <Card className="rounded-2xl shadow-md overflow-hidden">
-                        <CardHeader className="px-4 pt-4 pb-1">
-                          <div className="flex items-center gap-1.5">
-                            <svg
-                              className="h-3.5 w-3.5 shrink-0 text-red-500"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <circle cx="12" cy="12" r="9" />
-                              <path d="M12 3a9 9 0 0 1 0 18" />
-                              <path d="M3.6 9h16.8" />
-                              <path d="M3.6 15h16.8" />
-                            </svg>
-                            <CardTitle className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground leading-tight">
-                              Top Wicket Taker
-                            </CardTitle>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                          <p className="truncate text-xs font-bold text-foreground">
-                            {teamNames[topWicketTakers[t.key]!.teamId] ??
-                              topWicketTakers[t.key]!.teamId}
-                          </p>
-                          <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums text-foreground">
-                            {topWicketTakers[t.key]!.totalWicketsTaken}
-                            <span className="ml-1 text-xs font-medium text-muted-foreground">
-                              wkts
-                            </span>
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                  </div>
+                {/* ── Top Wicket Takers ─────────────── */}
+                {topBowlers[t.key].length > 0 && (
+                  <Card className="rounded-2xl shadow-md overflow-hidden">
+                    <CardHeader className="px-4 pt-4 pb-2">
+                      <div className="flex items-center gap-1.5">
+                        <svg
+                          className="h-3.5 w-3.5 shrink-0 text-red-500"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M12 3a9 9 0 0 1 0 18" />
+                          <path d="M3.6 9h16.8" />
+                          <path d="M3.6 15h16.8" />
+                        </svg>
+                        <CardTitle className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground leading-tight">
+                          Top Wicket Takers
+                        </CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 space-y-1.5">
+                      {topBowlers[t.key].map((player, i) => (
+                        <div
+                          key={player.playerId}
+                          className="flex items-center gap-2.5"
+                        >
+                          <span
+                            className={`
+                              flex h-5 w-5 shrink-0 items-center justify-center
+                              rounded-full text-[10px] font-black
+                              ${i === 0
+                                ? TAB_STYLE[t.key].rankBadge
+                                : TAB_STYLE[t.key].rankBadgeInactive
+                              }
+                            `}
+                          >
+                            {i + 1}
+                          </span>
+                          <span className="flex-1 truncate text-xs font-semibold text-foreground">
+                            {player.name}
+                          </span>
+                          <Badge className={`${TAB_STYLE[t.key].rankBadge} text-[10px] font-bold px-1.5 py-0`}>
+                            {player.value} wkts
+                          </Badge>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* ── League table — row cards ──────── */}

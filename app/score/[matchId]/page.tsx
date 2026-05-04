@@ -25,6 +25,9 @@ interface Match {
   status: boolean;
   team_a: Team;
   team_b: Team;
+  locked_by: string | null;
+  locked_by_name: string | null;
+  locked_at: string | null;
 }
 
 interface Player {
@@ -153,6 +156,10 @@ export default function ScorePage() {
   const [playersB, setPlayersB] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lockedByOther, setLockedByOther] = useState<string | null>(null); // name of person who locked it
+  const [resetting, setResetting] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   // Phase / flow state
   const [phase, setPhase] = useState<Phase>("team_a_setup");
@@ -191,9 +198,9 @@ export default function ScorePage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, full_name")
         .eq("id", user.id)
-        .single();
+        .single<{ role: string; full_name: string }>();
 
       if (
         !profile ||
@@ -240,6 +247,27 @@ export default function ScorePage() {
       }
 
       const m = matchData as unknown as Match;
+
+      // ── Match lock: first-come-first-serve ──────────────────
+      if (m.locked_by && m.locked_by !== user.id) {
+        // Someone else is scoring this match
+        setLockedByOther(m.locked_by_name ?? "Another user");
+        setMatch(m);
+        setLoading(false);
+        return;
+      }
+
+      // Acquire the lock if not already ours
+      if (!m.locked_by) {
+        await supabase.from("matches").update({
+          locked_by: user.id,
+          locked_by_name: profile.full_name,
+          locked_at: new Date().toISOString(),
+        }).eq("id", matchId);
+        m.locked_by = user.id;
+        m.locked_by_name = profile.full_name;
+      }
+
       setMatch(m);
 
       // Fetch players for both teams
@@ -488,6 +516,9 @@ export default function ScorePage() {
         wickets_a: stateA.wickets,
         wickets_b: stateB.wickets,
         status: true,
+        locked_by: null,
+        locked_by_name: null,
+        locked_at: null,
       })
       .eq("id", matchId);
 
@@ -543,6 +574,26 @@ export default function ScorePage() {
 
     window.location.href = "/fixtures";
   }, [match, events, matchId, endingMatch, supabase]);
+
+  // ── Reset match ──────────────────────────────────────────────────────────
+
+  const resetMatch = useCallback(async () => {
+    if (!match || resetting) return;
+    setResetting(true);
+
+    // Delete all match events
+    await supabase.from("match_events").delete().eq("match_id", matchId);
+
+    // Reset match state
+    await supabase.from("matches").update({
+      score_a: 0, score_b: 0, wickets_a: 0, wickets_b: 0,
+      status: false,
+      locked_by: null, locked_by_name: null, locked_at: null,
+    }).eq("id", matchId);
+
+    setResetting(false);
+    window.location.href = "/fixtures";
+  }, [match, matchId, resetting, supabase]);
 
   // ── Player card component ──────────────────────────────────────────────────
 
@@ -626,6 +677,30 @@ export default function ScorePage() {
   }
 
   if (!match) return null;
+
+  // ── Locked by someone else ─────────────────────────────────────────────────
+
+  if (lockedByOther) {
+    return (
+      <div className="mx-auto max-w-md min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center gap-4">
+        <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
+          <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-black text-foreground">Match Locked</h2>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-bold text-foreground">{lockedByOther}</span> is currently scoring this match.
+        </p>
+        <button
+          onClick={() => window.location.href = "/fixtures"}
+          className="h-12 px-8 rounded-2xl bg-cricket text-white font-bold active:scale-[0.98] transition-transform shadow-md"
+        >
+          Back to Fixtures
+        </button>
+      </div>
+    );
+  }
 
   // ── Derived display state ──────────────────────────────────────────────────
 
@@ -1318,7 +1393,52 @@ export default function ScorePage() {
               </svg>
               UNDO LAST BALL
             </button>
+
+            {/* Reset match button */}
+            <button
+              onClick={() => { setResetConfirmText(""); setShowResetDialog(true); }}
+              className="w-full h-12 rounded-2xl border-2 border-destructive text-destructive text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              Reset Match
+            </button>
           </>
+        )}
+
+        {/* Reset confirmation dialog */}
+        {showResetDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6">
+            <div className="w-full max-w-sm rounded-2xl bg-background p-6 shadow-xl space-y-4">
+              <h3 className="text-lg font-black text-destructive">Reset Match?</h3>
+              <p className="text-sm text-muted-foreground">
+                This will delete ALL ball-by-ball data and unlock the match. This cannot be undone.
+              </p>
+              <p className="text-sm font-bold text-foreground">
+                Type <span className="text-destructive">cancel</span> to confirm:
+              </p>
+              <input
+                type="text"
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder="Type cancel"
+                className="w-full h-12 rounded-xl border-2 border-border px-4 text-base font-bold text-center focus:outline-none focus:border-destructive"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowResetDialog(false)}
+                  className="flex-1 h-12 rounded-2xl border-2 border-border text-sm font-bold text-muted-foreground active:scale-[0.98] transition-transform"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={() => { setShowResetDialog(false); resetMatch(); }}
+                  disabled={resetConfirmText.toLowerCase() !== "cancel" || resetting}
+                  className="flex-1 h-12 rounded-2xl bg-destructive text-white text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-40 shadow-md"
+                >
+                  {resetting ? "Resetting..." : "Confirm Reset"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
