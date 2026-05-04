@@ -721,7 +721,7 @@ export default function TournamentsPage() {
                         htmlFor={`size-${tournament.id}`}
                         className="shrink-0 text-sm font-semibold"
                       >
-                        Max team size
+                        Team size (incl. mentor)
                       </Label>
                       <Input
                         id={`size-${tournament.id}`}

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -15,15 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 // ── Types ──────────────────────────────────────────────────
-
-interface PlayerExport {
-  id: string;
-  first_name: string;
-  last_name: string;
-  name: string;
-  age_group: string;
-  parent_name: string;
-}
 
 interface Counts {
   players: number;
@@ -41,7 +31,6 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [purging, setPurging] = useState(false);
   const [purgeConfirm, setPurgeConfirm] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,177 +130,6 @@ export default function AdminSettingsPage() {
     fetchCounts();
   }
 
-  // ── Export Players CSV ───────────────────────────────────
-
-  async function handleExportPlayers() {
-    setExporting(true);
-    setError(null);
-
-    // Fetch players with parent names
-    const { data: players, error: fetchErr } = await supabase
-      .from("players")
-      .select("id, first_name, last_name, name, age_group, parent_id")
-      .order("age_group")
-      .order("first_name");
-
-    if (fetchErr) {
-      setError(fetchErr.message);
-      setExporting(false);
-      return;
-    }
-
-    // Fetch parent names
-    const parentIds = [...new Set((players ?? []).map((p: { parent_id: string }) => p.parent_id))];
-    let parentNames: Record<string, string> = {};
-    if (parentIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", parentIds);
-      for (const p of profiles ?? []) {
-        parentNames[p.id] = p.full_name;
-      }
-    }
-
-    // Build CSV
-    const lines = ["Player ID,First Name,Last Name,School Year,Parent Name,Team Name,Tournament"];
-    for (const p of players ?? []) {
-      lines.push(
-        [
-          p.id,
-          csvEscape(p.first_name),
-          csvEscape(p.last_name),
-          p.age_group,
-          csvEscape(parentNames[p.parent_id] ?? ""),
-          "", // Team Name — blank for coaches to fill in
-          "", // Tournament — blank for coaches to fill in
-        ].join(",")
-      );
-    }
-
-    const csv = lines.join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `registered-players-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    setExporting(false);
-    showToast("Players CSV exported.");
-  }
-
-  // ── Import Teams CSV ───────────────────────────────────
-
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
-
-  async function handleImportTeams(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    setError(null);
-    setImportResult(null);
-
-    const text = await file.text();
-    const rows = text.split("\n").map((r) => r.split(",").map((c) => c.trim().replace(/^"|"$/g, "")));
-
-    // Find header row
-    const header = rows[0]?.map((h) => h.toLowerCase()) ?? [];
-    const idIdx = header.indexOf("player id");
-    const teamIdx = header.indexOf("team name");
-    const tournamentIdx = header.indexOf("tournament");
-
-    if (idIdx === -1 || teamIdx === -1) {
-      setError("CSV must have 'Player ID' and 'Team Name' columns.");
-      setImporting(false);
-      return;
-    }
-
-    // Collect unique team+tournament combos and player assignments
-    const teamPlayers = new Map<string, { tournament: string; playerIds: string[] }>();
-
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const playerId = row[idIdx]?.trim();
-      const teamName = row[teamIdx]?.trim();
-      const tournament = tournamentIdx !== -1 ? row[tournamentIdx]?.trim() : "";
-
-      if (!playerId || !teamName) continue;
-
-      const key = `${teamName}|||${tournament}`;
-      if (!teamPlayers.has(key)) {
-        teamPlayers.set(key, { tournament, playerIds: [] });
-      }
-      teamPlayers.get(key)!.playerIds.push(playerId);
-    }
-
-    // Fetch tournaments to map names to IDs
-    const { data: tournaments } = await supabase
-      .from("tournaments")
-      .select("id, name, colour");
-
-    const tournamentLookup: Record<string, string> = {};
-    for (const t of tournaments ?? []) {
-      tournamentLookup[t.name.toLowerCase()] = t.id;
-      tournamentLookup[t.colour.toLowerCase()] = t.id;
-    }
-
-    let teamsCreated = 0;
-    let playersAssigned = 0;
-
-    for (const [key, { tournament, playerIds }] of teamPlayers) {
-      const teamName = key.split("|||")[0];
-      const tournamentId = tournamentLookup[tournament.toLowerCase()];
-
-      if (!tournamentId) continue;
-
-      // Create or find team
-      let teamId: string;
-      const { data: existing } = await supabase
-        .from("teams")
-        .select("id")
-        .eq("name", teamName)
-        .eq("tournament_id", tournamentId)
-        .limit(1)
-        .single();
-
-      if (existing) {
-        teamId = existing.id;
-      } else {
-        const { data: newTeam, error: teamErr } = await supabase
-          .from("teams")
-          .insert({ name: teamName, tournament_id: tournamentId })
-          .select("id")
-          .single();
-
-        if (teamErr || !newTeam) continue;
-        teamId = newTeam.id;
-        teamsCreated++;
-      }
-
-      // Assign players
-      for (const pid of playerIds) {
-        const { error: updateErr } = await supabase
-          .from("players")
-          .update({ team_id: teamId })
-          .eq("id", pid);
-
-        if (!updateErr) playersAssigned++;
-      }
-    }
-
-    setImportResult(`${teamsCreated} teams created, ${playersAssigned} players assigned.`);
-    setImporting(false);
-    fetchCounts();
-
-    // Reset file input
-    e.target.value = "";
-  }
 
   // ── Toast helper ─────────────────────────────────────────
 
@@ -349,79 +167,6 @@ export default function AdminSettingsPage() {
           <StatCard label="Parents" value={counts.parents} loading={loading} />
           <StatCard label="Matches" value={counts.matches} loading={loading} />
         </div>
-
-        {/* ── Export Players ────────────────────────────── */}
-        <Card className="rounded-2xl shadow-md">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-black">Export Registered Players</CardTitle>
-            <CardDescription className="text-sm">
-              Download a CSV of all registered players with their school year and parent.
-              Fill in the &quot;Team Name&quot; and &quot;Tournament&quot; columns, then import it back.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="pt-0">
-            <Button
-              onClick={handleExportPlayers}
-              disabled={exporting}
-              className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold gap-2"
-            >
-              {exporting ? (
-                <>
-                  <Spinner />
-                  Exporting...
-                </>
-              ) : (
-                <>
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" />
-                  </svg>
-                  Export Players CSV
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* ── Import Teams ─────────────────────────────── */}
-        <Card className="rounded-2xl shadow-md">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-black">Import Team Allocations</CardTitle>
-            <CardDescription className="text-sm">
-              Upload the completed CSV with &quot;Team Name&quot; and &quot;Tournament&quot; columns filled in.
-              Teams will be created and players assigned automatically.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <label className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/40 text-sm font-bold text-muted-foreground transition-colors active:bg-muted">
-              {importing ? (
-                <>
-                  <Spinner />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                  </svg>
-                  Choose CSV File
-                </>
-              )}
-              <Input
-                type="file"
-                accept=".csv"
-                onChange={handleImportTeams}
-                disabled={importing}
-                className="hidden"
-              />
-            </label>
-
-            {importResult && (
-              <div className="rounded-xl bg-cricket/5 border border-cricket/20 px-4 py-3 text-sm font-semibold text-cricket">
-                {importResult}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* ── GDPR Purge card ──────────────────────────── */}
         <Card className="rounded-2xl shadow-md border-2 border-destructive/40">
