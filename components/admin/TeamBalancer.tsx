@@ -120,15 +120,29 @@ function PlayerAvatar({
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: player.id });
 
-  // Long press detection
+  // Long press detection — cancel if finger moves (drag starts)
   const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  function handleTouchStart() {
+  const touchStartPos = React.useRef<{ x: number; y: number } | null>(null);
+
+  function handlePointerDown(e: React.PointerEvent) {
+    touchStartPos.current = { x: e.clientX, y: e.clientY };
     longPressTimer.current = setTimeout(() => {
       onLongPress?.(player);
     }, 600);
   }
-  function handleTouchEnd() {
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!touchStartPos.current || !longPressTimer.current) return;
+    const dx = Math.abs(e.clientX - touchStartPos.current.x);
+    const dy = Math.abs(e.clientY - touchStartPos.current.y);
+    // Cancel long-press if finger moved more than 5px (drag threshold)
+    if (dx > 5 || dy > 5) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+  function handlePointerUp() {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    touchStartPos.current = null;
   }
 
   const styles = COLOUR_STYLES[colour];
@@ -167,9 +181,10 @@ function PlayerAvatar({
       ref={(node) => { setDragRef(node); setDropRef(node); }}
       {...listeners}
       {...attributes}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onContextMenu={(e) => { e.preventDefault(); onLongPress?.(player); }}
       className="cursor-grab touch-none transition-transform active:scale-110"
     >
