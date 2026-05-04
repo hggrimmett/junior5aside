@@ -941,7 +941,21 @@ export default function ScorePage() {
     ? scoringFieldingRoster.find((p) => p.id === scoringCurrentBowler)
     : null;
 
-  const last6 = getLastSixDeliveries(events, scoringTeamId);
+  // Current over balls (for this over only)
+  const currentOverBalls = (() => {
+    const innings = events.filter((e) => e.team_id === scoringTeamId);
+    const overStart = (scoringOver - 1) * 6;
+    const overBalls = innings.slice(overStart, overStart + 6);
+    return overBalls.map((e) => {
+      if (e.is_wicket) return "W";
+      if (e.extra_type === "wide") return "Wd";
+      if (e.extra_type === "no_ball") return "Nb";
+      if (e.extra_type === "bye") return `${e.runs}B`;
+      if (e.runs === 0) return "\u00B7";
+      return String(e.runs);
+    });
+  })();
+  const ballsLeftInOver = 6 - scoringState.ballInOver;
   const inningsComplete = scoringState.totalLegalBalls >= 24;
 
   // ── Over transition cards ──────────────────────────────────────────────────
@@ -1219,26 +1233,40 @@ export default function ScorePage() {
           </CardContent>
         </Card>
 
-        {/* Last 6 balls */}
-        <div className="flex items-center gap-2">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest shrink-0">
-            Last 6
-          </p>
-          <div className="flex gap-1.5 flex-wrap">
-            {last6.length === 0 ? (
-              <span className="text-xs text-muted-foreground italic">
-                No deliveries yet
+        {/* This Over — balls bowled + remaining */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              This Over
+            </p>
+            <p className="text-sm font-black text-foreground">
+              {scoringState.ballInOver}/6
+              <span className="text-muted-foreground font-semibold ml-1">
+                ({ballsLeftInOver} left)
               </span>
-            ) : (
-              last6.map((label, i) => (
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {[0, 1, 2, 3, 4, 5].map((i) => {
+              const label = currentOverBalls[i];
+              if (label) {
+                return (
+                  <span
+                    key={i}
+                    className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-black ${badgeStyle(label)}`}
+                  >
+                    {label}
+                  </span>
+                );
+              }
+              // Empty slot
+              return (
                 <span
                   key={i}
-                  className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-black ${badgeStyle(label)}`}
-                >
-                  {label}
-                </span>
-              ))
-            )}
+                  className="h-10 w-10 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300"
+                />
+              );
+            })}
           </div>
         </div>
 
