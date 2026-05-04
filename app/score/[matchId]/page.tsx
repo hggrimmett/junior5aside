@@ -282,8 +282,21 @@ export default function ScorePage() {
           .eq("team_id", m.team_b_id),
       ]);
 
-      setPlayersA((playersARes.data as Player[]) ?? []);
-      setPlayersB((playersBRes.data as Player[]) ?? []);
+      const pA = (playersARes.data as Player[]) ?? [];
+      const pB = (playersBRes.data as Player[]) ?? [];
+      setPlayersA(pA);
+      setPlayersB(pB);
+
+      // Block if either team doesn't have 4 players
+      if (pA.length < 4 || pB.length < 4) {
+        // Release the lock since we can't proceed
+        await supabase.from("matches").update({
+          locked_by: null, locked_by_name: null, locked_at: null,
+        }).eq("id", matchId);
+        setError(`Cannot start match: ${m.team_a.name} has ${pA.length} players, ${m.team_b.name} has ${pB.length} players. Both teams need 4 players.`);
+        setLoading(false);
+        return;
+      }
 
       // Fetch existing events
       const { data: eventsData } = await supabase
