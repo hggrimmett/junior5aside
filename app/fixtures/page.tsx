@@ -423,25 +423,30 @@ function MatchCard({
               </span>
             )}
 
-            {isCompleted && (
-              <Badge
-                className="rounded-full bg-[#114232]/10 text-[#114232] border-0 text-[10px] font-bold px-2.5 py-0.5"
-              >
-                Done
-              </Badge>
-            )}
-
-            {/* Score (completed) */}
-            {isCompleted && (
-              <div className="text-right">
-                <p className="text-xs font-bold tabular-nums text-foreground leading-tight">
-                  {scoreLabel(match.score_a, match.wickets_a)}
-                </p>
-                <p className="text-xs font-bold tabular-nums text-foreground leading-tight">
-                  {scoreLabel(match.score_b, match.wickets_b)}
-                </p>
-              </div>
-            )}
+            {isCompleted && (() => {
+              const netA = 100 + (match.score_a ?? 0) - ((match.wickets_a ?? 0) * 6);
+              const netB = 100 + (match.score_b ?? 0) - ((match.wickets_b ?? 0) * 6);
+              const aWon = netA > netB;
+              const bWon = netB > netA;
+              const draw = netA === netB;
+              return (
+                <>
+                  <Badge className={`rounded-full text-[10px] font-bold px-2.5 py-0.5 ${
+                    draw ? "bg-gray-100 text-gray-600" : "bg-[#114232]/10 text-[#114232]"
+                  }`}>
+                    {draw ? "Draw" : aWon ? `${teamAName} win` : `${teamBName} win`}
+                  </Badge>
+                  <div className="text-right space-y-0.5">
+                    <p className={`text-xs tabular-nums leading-tight ${aWon ? "font-black text-foreground" : "font-semibold text-muted-foreground"}`}>
+                      {teamAName}: {scoreLabel(match.score_a, match.wickets_a)} <span className="text-[10px]">Net {netA}</span>
+                    </p>
+                    <p className={`text-xs tabular-nums leading-tight ${bWon ? "font-black text-foreground" : "font-semibold text-muted-foreground"}`}>
+                      {teamBName}: {scoreLabel(match.score_b, match.wickets_b)} <span className="text-[10px]">Net {netB}</span>
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Watch live link */}
             {isLive && (
