@@ -185,6 +185,7 @@ export default function ScorePage() {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [manualStrikeSwaps, setManualStrikeSwaps] = useState(0);
 
   // Phase / flow state
   const [phase, setPhase] = useState<Phase>("team_a_setup");
@@ -996,7 +997,8 @@ export default function ScorePage() {
   const bowlerPlayer = scoringCurrentBowler
     ? scoringFieldingRoster.find((p) => p.id === scoringCurrentBowler)
     : null;
-  const strikerIdx = getStrikerIndex(events, scoringTeamId, scoringCurrentPair);
+  const calculatedStrikerIdx = getStrikerIndex(events, scoringTeamId, scoringCurrentPair);
+  const strikerIdx = (calculatedStrikerIdx + manualStrikeSwaps) % 2;
   const strikerPlayer = pairPlayers[strikerIdx] ?? pairPlayers[0];
   const nonStrikerPlayer = pairPlayers[strikerIdx === 0 ? 1 : 0];
 
@@ -1256,9 +1258,17 @@ export default function ScorePage() {
           <p className="text-cricket-foreground/70 text-[10px] font-bold uppercase tracking-widest">
             {scoringTeamName} · Over {scoringOver}/4 · {bowlerPlayer ? `${bowlerPlayer.first_name} bowling` : ""}
           </p>
-          <p className="text-cricket-foreground text-xs font-bold mt-0.5">
-            🏏 {strikerPlayer?.first_name ?? "?"} facing{nonStrikerPlayer ? ` · ${nonStrikerPlayer.first_name} non-strike` : ""}
-          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-cricket-foreground text-xs font-bold">
+              🏏 {strikerPlayer?.first_name ?? "?"}{nonStrikerPlayer ? ` · ${nonStrikerPlayer.first_name}` : ""}
+            </p>
+            <button
+              onClick={() => setManualStrikeSwaps((s) => s + 1)}
+              className="h-6 px-2 rounded bg-white/20 text-[10px] font-bold text-white active:bg-white/30"
+            >
+              ⇄ Swap
+            </button>
+          </div>
           <div className="flex items-baseline gap-3">
             <span className="text-4xl font-black tracking-tight text-cricket-foreground">
               {scoringState.runs}/{scoringState.wickets}
