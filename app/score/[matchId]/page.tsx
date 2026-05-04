@@ -1347,9 +1347,9 @@ export default function ScorePage() {
             <button disabled={saving} onClick={() => insertEvent({ runs: 4 })} className="h-[4.5rem] rounded-2xl bg-cricket text-white text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">4</button>
             <button disabled={saving} onClick={() => insertEvent({ runs: 6 })} className="h-[4.5rem] rounded-2xl bg-cricket text-white text-3xl font-black active:scale-95 transition-transform disabled:opacity-50">6</button>
           </div>
-          <div className="grid grid-cols-2 gap-1">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="h-14 rounded-2xl bg-red-500 text-white text-lg font-black active:scale-95 transition-transform disabled:opacity-50">WICKET</button>
-            <button disabled={saving} onClick={undoLast} className="h-14 rounded-2xl bg-amber-500 text-white text-lg font-black active:scale-95 transition-transform disabled:opacity-50">UNDO</button>
+          <div className="grid grid-cols-3 gap-1">
+            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="col-span-2 h-14 rounded-2xl bg-red-500 text-white text-lg font-black active:scale-95 transition-transform disabled:opacity-50">WICKET</button>
+            <button disabled={saving} onClick={undoLast} className="h-14 rounded-2xl border-2 border-amber-400 text-amber-600 text-xs font-bold active:scale-95 transition-transform disabled:opacity-50">Undo</button>
           </div>
           <div className="grid grid-cols-5 gap-1">
             <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "wide" })} className="h-11 rounded-xl bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-black active:scale-95 disabled:opacity-50">Wide</button>
