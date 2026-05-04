@@ -48,7 +48,7 @@ interface MatchEvent {
   created_at: string;
 }
 
-type ExtraType = "wide" | "no_ball";
+type ExtraType = "wide" | "no_ball" | "bye";
 
 type Phase =
   | "team_a_setup"
