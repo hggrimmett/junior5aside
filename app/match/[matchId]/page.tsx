@@ -65,6 +65,7 @@ function ballLabel(event: MatchEvent): string {
   if (event.is_wicket) return "W";
   if (event.extra_type === "wide") return "Wd";
   if (event.extra_type === "no_ball") return "Nb";
+  if (event.extra_type === "bye") return `${event.runs}B`;
   if (event.runs === 0) return "•";
   return String(event.runs);
 }

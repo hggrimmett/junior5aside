@@ -92,6 +92,7 @@ function getLastSixDeliveries(events: MatchEvent[], teamId: string): string[] {
     if (e.is_wicket) return "W";
     if (e.extra_type === "wide") return "Wd";
     if (e.extra_type === "no_ball") return "Nb";
+    if (e.extra_type === "bye") return `${e.runs}B`;
     if (e.runs === 0) return "\u00B7";
     return String(e.runs);
   });
@@ -101,6 +102,7 @@ function badgeStyle(label: string): string {
   if (label === "W") return "bg-red-500 text-white";
   if (label === "4") return "bg-cricket text-white";
   if (label === "6") return "bg-cricket text-white";
+  if (label.endsWith("B")) return "bg-blue-100 text-blue-700 border border-blue-300";
   if (label === "\u00B7") return "bg-gray-200 text-gray-500";
   return "bg-gray-100 text-gray-700 border border-gray-300";
 }
@@ -1263,6 +1265,33 @@ export default function ScorePage() {
                     <span className="block text-xs font-semibold">
                       +2 runs, counts as ball
                     </span>
+                  </button>
+                </div>
+
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-4 mb-3">
+                  Byes / Leg Byes
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 1, extraType: "bye" })}
+                    className="h-14 rounded-xl bg-blue-100 text-blue-800 border border-blue-300 text-lg font-black active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    1 Bye
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 2, extraType: "bye" })}
+                    className="h-14 rounded-xl bg-blue-100 text-blue-800 border border-blue-300 text-lg font-black active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    2 Byes
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 4, extraType: "bye" })}
+                    className="h-14 rounded-xl bg-blue-100 text-blue-800 border border-blue-300 text-lg font-black active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    4 Byes
                   </button>
                 </div>
               </CardContent>
