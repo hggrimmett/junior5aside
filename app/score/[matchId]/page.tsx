@@ -110,6 +110,30 @@ function badgeStyle(label: string): string {
   return "bg-gray-100 text-gray-700 border border-gray-300";
 }
 
+/** Determine which batter in the pair is on strike (0 or 1).
+ *  Strike swaps on odd runs/byes. Strike swaps at end of each over. */
+function getStrikerIndex(events: MatchEvent[], teamId: string, pair: string[]): number {
+  if (pair.length < 2) return 0;
+  const innings = events.filter((e) => e.team_id === teamId);
+  let striker = 0; // 0 = first in pair, 1 = second in pair
+
+  for (let i = 0; i < innings.length; i++) {
+    const e = innings[i];
+    // After each ball, check if strike changes
+    const runs = e.runs;
+    // Odd runs swap strike (including byes)
+    if (runs % 2 === 1) {
+      striker = striker === 0 ? 1 : 0;
+    }
+    // End of over swaps strike (every 6 balls)
+    if ((i + 1) % 6 === 0) {
+      striker = striker === 0 ? 1 : 0;
+    }
+  }
+
+  return striker;
+}
+
 /** Derive bowlers used so far from events for a given fielding team */
 function getUsedBowlerIds(events: MatchEvent[], battingTeamId: string): string[] {
   const innings = events.filter((e) => e.team_id === battingTeamId);
@@ -452,10 +476,9 @@ export default function ScorePage() {
       const overNum = Math.min(state.overNumber, 4);
       const ballNum = state.ballInOver + 1;
 
-      // Determine batter — alternate between pair members
+      // Determine striker — track strike changes from runs + over ends
       const pair = overNum <= 2 ? currentPair1 : currentPair2;
-      const pairIndex = state.totalLegalBalls % 2;
-      const batterId = pair.length > 0 ? pair[pairIndex % pair.length] : null;
+      const batterId = pair.length > 0 ? pair[getStrikerIndex(events, teamId, pair) % pair.length] : null;
       const bowlerId =
         currentBowlers.length >= overNum ? currentBowlers[overNum - 1] : null;
 
@@ -973,6 +996,9 @@ export default function ScorePage() {
   const bowlerPlayer = scoringCurrentBowler
     ? scoringFieldingRoster.find((p) => p.id === scoringCurrentBowler)
     : null;
+  const strikerIdx = getStrikerIndex(events, scoringTeamId, scoringCurrentPair);
+  const strikerPlayer = pairPlayers[strikerIdx] ?? pairPlayers[0];
+  const nonStrikerPlayer = pairPlayers[strikerIdx === 0 ? 1 : 0];
 
   // Current over balls (for this over only)
   const currentOverBalls = (() => {
@@ -1228,7 +1254,10 @@ export default function ScorePage() {
       <div className="bg-cricket px-4 py-3 flex items-center justify-between shrink-0">
         <div>
           <p className="text-cricket-foreground/70 text-[10px] font-bold uppercase tracking-widest">
-            {scoringTeamName} · Over {scoringOver}/4 · {scoringOver <= 2 ? "Pair 1" : "Pair 2"}
+            {scoringTeamName} · Over {scoringOver}/4 · {bowlerPlayer ? `${bowlerPlayer.first_name} bowling` : ""}
+          </p>
+          <p className="text-cricket-foreground text-xs font-bold mt-0.5">
+            🏏 {strikerPlayer?.first_name ?? "?"} facing{nonStrikerPlayer ? ` · ${nonStrikerPlayer.first_name} non-strike` : ""}
           </p>
           <div className="flex items-baseline gap-3">
             <span className="text-4xl font-black tracking-tight text-cricket-foreground">
@@ -1297,32 +1326,32 @@ export default function ScorePage() {
       {/* Transition card (if any) */}
       {transition && <div className="px-4 pt-3 shrink-0">{renderTransition()}</div>}
 
-      {/* Scoring buttons — single screen, no scroll */}
+      {/* Scoring buttons — fits one screen */}
       {!transition && !inningsComplete && (
-        <div className="flex-1 px-4 py-3 flex flex-col gap-2">
-          {/* Run buttons — compact grid */}
-          <div className="grid grid-cols-6 gap-2 place-items-center">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 0 })} className="h-14 w-14 rounded-full bg-gray-200 text-gray-600 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">0</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 1 })} className="h-14 w-14 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">1</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2 })} className="h-14 w-14 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">2</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 3 })} className="h-14 w-14 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-xl font-black active:scale-90 transition-transform disabled:opacity-50">3</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 4 })} className="h-14 w-14 rounded-full bg-cricket text-white text-xl font-black active:scale-90 transition-transform disabled:opacity-50">4</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 6 })} className="h-14 w-14 rounded-full bg-cricket text-white text-xl font-black active:scale-90 transition-transform disabled:opacity-50">6</button>
+        <div className="flex-1 px-3 py-2 flex flex-col justify-between">
+          {/* Run buttons — 3x2 grid, good size */}
+          <div className="grid grid-cols-3 gap-3 place-items-center">
+            <button disabled={saving} onClick={() => insertEvent({ runs: 0 })} className="h-16 w-16 rounded-full bg-gray-200 text-gray-600 text-2xl font-black active:scale-90 transition-transform disabled:opacity-50 shadow">0</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 1 })} className="h-16 w-16 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-90 transition-transform disabled:opacity-50 shadow">1</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2 })} className="h-16 w-16 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-90 transition-transform disabled:opacity-50 shadow">2</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 3 })} className="h-16 w-16 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-90 transition-transform disabled:opacity-50 shadow">3</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 4 })} className="h-16 w-16 rounded-full bg-cricket text-white text-2xl font-black active:scale-90 transition-transform disabled:opacity-50 shadow-md">4</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 6 })} className="h-16 w-16 rounded-full bg-cricket text-white text-2xl font-black active:scale-90 transition-transform disabled:opacity-50 shadow-md">6</button>
           </div>
 
-          {/* Wicket + Undo row */}
+          {/* Wicket + Undo */}
           <div className="grid grid-cols-2 gap-2">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="h-12 rounded-xl bg-red-500 text-white text-sm font-black active:scale-95 transition-transform disabled:opacity-50 shadow">WICKET</button>
-            <button disabled={saving} onClick={undoLast} className="h-12 rounded-xl bg-amber-500 text-white text-sm font-black active:scale-95 transition-transform disabled:opacity-50 shadow">UNDO</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 0, isWicket: true })} className="h-14 rounded-xl bg-red-500 text-white text-base font-black active:scale-95 transition-transform disabled:opacity-50 shadow">WICKET</button>
+            <button disabled={saving} onClick={undoLast} className="h-14 rounded-xl bg-amber-500 text-white text-base font-black active:scale-95 transition-transform disabled:opacity-50 shadow">UNDO</button>
           </div>
 
-          {/* Extras — single row */}
+          {/* Extras */}
           <div className="grid grid-cols-5 gap-1.5">
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "wide" })} className="h-11 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">Wide</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "no_ball" })} className="h-11 rounded-lg bg-orange-100 text-orange-800 border border-orange-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">No Ball</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 1, extraType: "bye" })} className="h-11 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">1 Bye</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "bye" })} className="h-11 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">2 Bye</button>
-            <button disabled={saving} onClick={() => insertEvent({ runs: 4, extraType: "bye" })} className="h-11 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-xs font-black active:scale-95 transition-transform disabled:opacity-50">4 Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "wide" })} className="h-12 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-black active:scale-95 transition-transform disabled:opacity-50">Wide</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "no_ball" })} className="h-12 rounded-lg bg-orange-100 text-orange-800 border border-orange-300 text-[11px] font-black active:scale-95 transition-transform disabled:opacity-50">NoBall</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 1, extraType: "bye" })} className="h-12 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-[11px] font-black active:scale-95 transition-transform disabled:opacity-50">1Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 2, extraType: "bye" })} className="h-12 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-[11px] font-black active:scale-95 transition-transform disabled:opacity-50">2Bye</button>
+            <button disabled={saving} onClick={() => insertEvent({ runs: 4, extraType: "bye" })} className="h-12 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 text-[11px] font-black active:scale-95 transition-transform disabled:opacity-50">4Bye</button>
           </div>
         </div>
       )}
