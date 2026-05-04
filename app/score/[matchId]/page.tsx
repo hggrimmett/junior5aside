@@ -27,6 +27,13 @@ interface Match {
   team_b: Team;
 }
 
+interface Player {
+  id: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+}
+
 interface MatchEvent {
   id: string;
   match_id: string;
@@ -41,38 +48,43 @@ interface MatchEvent {
   created_at: string;
 }
 
-type ExtraType = "wide" | "no_ball" | "bye";
+type ExtraType = "wide" | "no_ball";
+
+type Phase =
+  | "team_a_setup"
+  | "team_a_innings"
+  | "team_b_setup"
+  | "team_b_innings"
+  | "match_complete";
+
+type TransitionType =
+  | "over_1_done"
+  | "over_2_done"
+  | "over_3_done"
+  | "over_4_done"
+  | null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function playerName(p: Player): string {
+  return `${p.first_name} ${p.last_name}`;
+}
+
+function playerInitials(p: Player): string {
+  return `${p.first_name?.[0] ?? ""}${p.last_name?.[0] ?? ""}`.toUpperCase();
+}
 
 function deriveInningsState(events: MatchEvent[], teamId: string) {
   const innings = events.filter((e) => e.team_id === teamId);
   const runs = innings.reduce((sum, e) => sum + e.runs, 0);
   const wickets = innings.filter((e) => e.is_wicket).length;
-
-  // Balls that count: not wide or no-ball
   const legalBalls = innings.filter(
     (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
   );
-
   const totalLegalBalls = legalBalls.length;
-  const overNumber = Math.floor(totalLegalBalls / 6);
-  const ballNumber = totalLegalBalls % 6;
-
-  return { runs, wickets, overNumber, ballNumber };
-}
-
-function getNextBallCoords(
-  events: MatchEvent[],
-  teamId: string
-): { overNumber: number; ballNumber: number } {
-  const { overNumber, ballNumber } = deriveInningsState(events, teamId);
-  // ballNumber is already "balls bowled in current over" (0-5)
-  // Next ball: if we've completed 6, start new over
-  if (ballNumber === 0 && deriveInningsState(events, teamId).overNumber > overNumber) {
-    return { overNumber: overNumber + 1, ballNumber: 1 };
-  }
-  return { overNumber, ballNumber: ballNumber + 1 };
+  const overNumber = Math.floor(totalLegalBalls / 6) + 1; // 1-based over
+  const ballInOver = totalLegalBalls % 6; // balls bowled in current over (0-5)
+  return { runs, wickets, totalLegalBalls, overNumber, ballInOver };
 }
 
 function getLastSixDeliveries(events: MatchEvent[], teamId: string): string[] {
@@ -82,8 +94,7 @@ function getLastSixDeliveries(events: MatchEvent[], teamId: string): string[] {
     if (e.is_wicket) return "W";
     if (e.extra_type === "wide") return "Wd";
     if (e.extra_type === "no_ball") return "Nb";
-    if (e.extra_type === "bye") return "By";
-    if (e.runs === 0) return "·";
+    if (e.runs === 0) return "\u00B7";
     return String(e.runs);
   });
 }
@@ -92,8 +103,43 @@ function badgeStyle(label: string): string {
   if (label === "W") return "bg-red-500 text-white";
   if (label === "4") return "bg-cricket text-white";
   if (label === "6") return "bg-cricket text-white";
-  if (label === "·") return "bg-gray-200 text-gray-500";
+  if (label === "\u00B7") return "bg-gray-200 text-gray-500";
   return "bg-gray-100 text-gray-700 border border-gray-300";
+}
+
+/** Derive bowlers used so far from events for a given fielding team */
+function getUsedBowlerIds(events: MatchEvent[], battingTeamId: string): string[] {
+  const innings = events.filter((e) => e.team_id === battingTeamId);
+  const ids = new Set<string>();
+  innings.forEach((e) => {
+    if (e.bowler_id) ids.add(e.bowler_id);
+  });
+  return Array.from(ids);
+}
+
+/** Derive pair selections from events */
+function derivePairsFromEvents(
+  events: MatchEvent[],
+  battingTeamId: string
+): { pair1: string[]; pair2: string[] } {
+  const innings = events.filter((e) => e.team_id === battingTeamId);
+  const pair1Ids = new Set<string>();
+  const pair2Ids = new Set<string>();
+  innings.forEach((e) => {
+    if (!e.batter_id) return;
+    const legalBefore = innings
+      .filter(
+        (ev) =>
+          ev.extra_type !== "wide" &&
+          ev.extra_type !== "no_ball" &&
+          ev.created_at < e.created_at
+      ).length;
+    // Overs 1-2 (first 12 legal balls) = pair 1, overs 3-4 = pair 2
+    const overNum = Math.floor(legalBefore / 6) + 1;
+    if (overNum <= 2) pair1Ids.add(e.batter_id);
+    else pair2Ids.add(e.batter_id);
+  });
+  return { pair1: Array.from(pair1Ids), pair2: Array.from(pair2Ids) };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -104,13 +150,34 @@ export default function ScorePage() {
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
 
+  // Core state
   const [loading, setLoading] = useState(true);
   const [match, setMatch] = useState<Match | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
-  const [activeTab, setActiveTab] = useState<"a" | "b">("a");
+  const [playersA, setPlayersA] = useState<Player[]>([]);
+  const [playersB, setPlayersB] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
-  const [endingMatch, setEndingMatch] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Phase / flow state
+  const [phase, setPhase] = useState<Phase>("team_a_setup");
+  const [transition, setTransition] = useState<TransitionType>(null);
+
+  // Team A innings selections
+  const [aPair1, setAPair1] = useState<string[]>([]);
+  const [aPair2, setAPair2] = useState<string[]>([]);
+  const [aBowlers, setABowlers] = useState<string[]>([]); // bowler for each over [over1, over2, over3, over4]
+
+  // Team B innings selections
+  const [bPair1, setBPair1] = useState<string[]>([]);
+  const [bPair2, setBPair2] = useState<string[]>([]);
+  const [bBowlers, setBBowlers] = useState<string[]>([]);
+
+  // Ending match
+  const [endingMatch, setEndingMatch] = useState(false);
+
+  // Temp state for transition selections
+  const [tempBowlerSelection, setTempBowlerSelection] = useState<string | null>(null);
 
   // ── Auth + data fetch ──────────────────────────────────────────────────────
 
@@ -118,7 +185,6 @@ export default function ScorePage() {
     if (!matchId) return;
 
     async function init() {
-      // Auth check
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -161,7 +227,7 @@ export default function ScorePage() {
         return;
       }
 
-      // Mentor access check: only the mentor of team_a or team_b may score
+      // Mentor access check
       if (profile.role === "mentor") {
         const { data: teamsData } = await supabase
           .from("teams")
@@ -178,21 +244,136 @@ export default function ScorePage() {
         }
       }
 
-      setMatch(matchData as unknown as Match);
+      const m = matchData as unknown as Match;
+      setMatch(m);
 
-      // Fetch events
+      // Fetch players for both teams
+      const [playersARes, playersBRes] = await Promise.all([
+        supabase
+          .from("players")
+          .select("id, first_name, last_name, avatar_url")
+          .eq("team_id", m.team_a_id),
+        supabase
+          .from("players")
+          .select("id, first_name, last_name, avatar_url")
+          .eq("team_id", m.team_b_id),
+      ]);
+
+      setPlayersA((playersARes.data as Player[]) ?? []);
+      setPlayersB((playersBRes.data as Player[]) ?? []);
+
+      // Fetch existing events
       const { data: eventsData } = await supabase
         .from("match_events")
         .select("*")
         .eq("match_id", matchId)
         .order("created_at", { ascending: true });
 
-      setEvents((eventsData as MatchEvent[]) ?? []);
+      const existingEvents = (eventsData as MatchEvent[]) ?? [];
+      setEvents(existingEvents);
+
+      // Derive phase from existing events
+      const teamAEvents = existingEvents.filter((e) => e.team_id === m.team_a_id);
+      const teamBEvents = existingEvents.filter((e) => e.team_id === m.team_b_id);
+      const teamALegal = teamAEvents.filter(
+        (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
+      ).length;
+      const teamBLegal = teamBEvents.filter(
+        (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
+      ).length;
+
+      if (m.status === true) {
+        setPhase("match_complete");
+      } else if (teamBLegal >= 24) {
+        setPhase("match_complete");
+      } else if (teamBLegal > 0 || (teamALegal >= 24 && teamBEvents.length > 0)) {
+        // Team B is batting — reconstruct selections from events
+        setPhase("team_b_innings");
+        // Reconstruct team A selections
+        const aPairs = derivePairsFromEvents(existingEvents, m.team_a_id);
+        setAPair1(aPairs.pair1);
+        setAPair2(aPairs.pair2);
+        setABowlers(getUsedBowlerIds(existingEvents, m.team_a_id));
+        // Reconstruct team B selections
+        const bPairs = derivePairsFromEvents(existingEvents, m.team_b_id);
+        if (bPairs.pair1.length > 0) setBPair1(bPairs.pair1);
+        if (bPairs.pair2.length > 0) setBPair2(bPairs.pair2);
+        setBBowlers(getUsedBowlerIds(existingEvents, m.team_b_id));
+      } else if (teamALegal >= 24) {
+        setPhase("team_b_setup");
+        const aPairs = derivePairsFromEvents(existingEvents, m.team_a_id);
+        setAPair1(aPairs.pair1);
+        setAPair2(aPairs.pair2);
+        setABowlers(getUsedBowlerIds(existingEvents, m.team_a_id));
+      } else if (teamALegal > 0) {
+        setPhase("team_a_innings");
+        const aPairs = derivePairsFromEvents(existingEvents, m.team_a_id);
+        if (aPairs.pair1.length > 0) setAPair1(aPairs.pair1);
+        if (aPairs.pair2.length > 0) setAPair2(aPairs.pair2);
+        setABowlers(getUsedBowlerIds(existingEvents, m.team_a_id));
+      } else {
+        setPhase("team_a_setup");
+      }
+
       setLoading(false);
     }
 
     init();
   }, [matchId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Current innings helpers ────────────────────────────────────────────────
+
+  const currentBattingTeamId =
+    phase === "team_a_innings"
+      ? match?.team_a_id ?? ""
+      : phase === "team_b_innings"
+      ? match?.team_b_id ?? ""
+      : "";
+
+  const currentPair1 = phase === "team_a_innings" ? aPair1 : bPair1;
+  const currentPair2 = phase === "team_a_innings" ? aPair2 : bPair2;
+  const currentBowlers = phase === "team_a_innings" ? aBowlers : bBowlers;
+
+  // Derive current innings state
+  const inningsState = currentBattingTeamId
+    ? deriveInningsState(events, currentBattingTeamId)
+    : { runs: 0, wickets: 0, totalLegalBalls: 0, overNumber: 1, ballInOver: 0 };
+
+  // Current over (1-based) — clamp to 4
+  const currentOver = Math.min(inningsState.overNumber, 4);
+  // ── Detect over transitions ────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (phase !== "team_a_innings" && phase !== "team_b_innings") return;
+    if (!currentBattingTeamId) return;
+
+    const state = deriveInningsState(events, currentBattingTeamId);
+
+    // Check if innings is complete (24 legal balls = 4 overs)
+    if (state.totalLegalBalls >= 24) {
+      if (phase === "team_a_innings") {
+        setTransition("over_4_done");
+      } else {
+        setPhase("match_complete");
+      }
+      return;
+    }
+
+    // Check over boundaries — only trigger if we just completed an over (ballInOver === 0 and totalLegalBalls > 0)
+    if (state.ballInOver === 0 && state.totalLegalBalls > 0) {
+      const completedOver = state.totalLegalBalls / 6;
+      const bowlersSet = phase === "team_a_innings" ? aBowlers : bBowlers;
+
+      // Only show transition if we haven't already set up the next bowler
+      if (completedOver === 1 && bowlersSet.length < 2) {
+        setTransition("over_1_done");
+      } else if (completedOver === 2 && bowlersSet.length < 3) {
+        setTransition("over_2_done");
+      } else if (completedOver === 3 && bowlersSet.length < 4) {
+        setTransition("over_3_done");
+      }
+    }
+  }, [events, phase, currentBattingTeamId, aBowlers, bBowlers]);
 
   // ── Insert event ───────────────────────────────────────────────────────────
 
@@ -202,38 +383,41 @@ export default function ScorePage() {
       isWicket?: boolean;
       extraType?: ExtraType;
     }) => {
-      if (!match || saving) return;
-      setSaving(true);
+      if (!match || saving || transition) return;
+      if (phase !== "team_a_innings" && phase !== "team_b_innings") return;
 
-      const teamId =
-        activeTab === "a" ? match.team_a_id : match.team_b_id;
+      const teamId = currentBattingTeamId;
+      if (!teamId) return;
+
+      // Check innings not complete
+      const state = deriveInningsState(events, teamId);
+      if (state.totalLegalBalls >= 24) return;
+
+      setSaving(true);
 
       const isExtra =
         opts.extraType === "wide" || opts.extraType === "no_ball";
 
-      // Determine over/ball numbers from current state
-      const teamEvents = events.filter((e) => e.team_id === teamId);
-      const legalBalls = teamEvents.filter(
-        (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
-      );
-      const totalLegal = legalBalls.length;
-      const currentOver = Math.floor(totalLegal / 6);
-      const currentBall = totalLegal % 6; // 0-5, balls already bowled in this over
+      const overNum = Math.min(state.overNumber, 4);
+      const ballNum = isExtra ? state.ballInOver : state.ballInOver + 1;
 
-      // For extras (wide/no-ball), ball_number doesn't change
-      const ballNumber = isExtra ? currentBall + 1 : currentBall + 1;
-      const overNumber = isExtra ? currentOver : currentOver;
+      // Determine batter — alternate between pair members
+      const pair = overNum <= 2 ? currentPair1 : currentPair2;
+      const pairIndex = state.totalLegalBalls % 2;
+      const batterId = pair.length > 0 ? pair[pairIndex % pair.length] : null;
+      const bowlerId =
+        currentBowlers.length >= overNum ? currentBowlers[overNum - 1] : null;
 
       const newEvent: Omit<MatchEvent, "id" | "created_at"> = {
         match_id: matchId,
         team_id: teamId,
-        over_number: overNumber,
-        ball_number: ballNumber,
+        over_number: overNum,
+        ball_number: ballNum,
         runs: opts.runs,
         is_wicket: opts.isWicket ?? false,
         extra_type: opts.extraType ?? null,
-        batter_id: null,
-        bowler_id: null,
+        batter_id: batterId,
+        bowler_id: bowlerId,
       };
 
       // Optimistic update
@@ -252,11 +436,9 @@ export default function ScorePage() {
         .single();
 
       if (insertErr) {
-        // Roll back optimistic update
         setEvents((prev) => prev.filter((e) => e.id !== optimisticId));
         setError("Failed to record delivery. Please try again.");
       } else {
-        // Replace optimistic with real
         setEvents((prev) =>
           prev.map((e) =>
             e.id === optimisticId ? (inserted as MatchEvent) : e
@@ -266,22 +448,24 @@ export default function ScorePage() {
 
       setSaving(false);
     },
-    [match, activeTab, events, matchId, saving, supabase]
+    [match, saving, transition, phase, currentBattingTeamId, events, matchId, currentPair1, currentPair2, currentBowlers, supabase]
   );
 
   // ── Undo ───────────────────────────────────────────────────────────────────
 
   const undoLast = useCallback(async () => {
     if (!match || saving || events.length === 0) return;
+    if (phase !== "team_a_innings" && phase !== "team_b_innings") return;
 
-    const teamId =
-      activeTab === "a" ? match.team_a_id : match.team_b_id;
+    const teamId = currentBattingTeamId;
     const teamEvents = events.filter((e) => e.team_id === teamId);
     if (teamEvents.length === 0) return;
 
     const last = teamEvents[teamEvents.length - 1];
 
-    // Optimistic remove
+    // Clear any transition since we're undoing
+    setTransition(null);
+
     setEvents((prev) => prev.filter((e) => e.id !== last.id));
 
     const { error: delErr } = await supabase
@@ -290,24 +474,22 @@ export default function ScorePage() {
       .eq("id", last.id);
 
     if (delErr) {
-      // Roll back
-      setEvents((prev) => [...prev, last].sort((a, b) =>
-        a.created_at.localeCompare(b.created_at)
-      ));
+      setEvents((prev) =>
+        [...prev, last].sort((a, b) => a.created_at.localeCompare(b.created_at))
+      );
       setError("Failed to undo. Please try again.");
     }
-  }, [match, activeTab, events, saving, supabase]);
+  }, [match, saving, events, phase, currentBattingTeamId, supabase]);
 
   // ── End match ──────────────────────────────────────────────────────────────
 
-  const endMatch = useCallback(async () => {
+  const submitResults = useCallback(async () => {
     if (!match || endingMatch) return;
     setEndingMatch(true);
 
     const stateA = deriveInningsState(events, match.team_a_id);
     const stateB = deriveInningsState(events, match.team_b_id);
 
-    // 1. Update match with final scores
     const { error: updateErr } = await supabase
       .from("matches")
       .update({
@@ -320,47 +502,104 @@ export default function ScorePage() {
       .eq("id", matchId);
 
     if (updateErr) {
-      setError("Failed to end match. Please try again.");
+      setError("Failed to submit results. Please try again.");
       setEndingMatch(false);
       return;
     }
 
-    // 2. Calculate net scores (100 + runs - 6*wickets)
     const netA = calculateMatchScore(stateA.runs, stateA.wickets);
     const netB = calculateMatchScore(stateB.runs, stateB.wickets);
 
-    // 3. Determine points: Win=3, Draw=1, Loss=0
     let pointsA = 0;
     let pointsB = 0;
-    if (netA > netB) { pointsA = 3; }
-    else if (netB > netA) { pointsB = 3; }
-    else { pointsA = 1; pointsB = 1; }
-
-    // 4. Increment team points and total_runs
-    // Using raw SQL via rpc would be cleaner, but increment with fetch+update works
-    const teamAId = match.team_a_id;
-    const teamBId = match.team_b_id;
+    if (netA > netB) {
+      pointsA = 3;
+    } else if (netB > netA) {
+      pointsB = 3;
+    } else {
+      pointsA = 1;
+      pointsB = 1;
+    }
 
     const [teamARes, teamBRes] = await Promise.all([
-      supabase.from("teams").select("points, total_runs").eq("id", teamAId).single(),
-      supabase.from("teams").select("points, total_runs").eq("id", teamBId).single(),
+      supabase
+        .from("teams")
+        .select("points, total_runs")
+        .eq("id", match.team_a_id)
+        .single(),
+      supabase
+        .from("teams")
+        .select("points, total_runs")
+        .eq("id", match.team_b_id)
+        .single(),
     ]);
 
     await Promise.all([
-      supabase.from("teams").update({
-        points: (teamARes.data?.points ?? 0) + pointsA,
-        total_runs: (teamARes.data?.total_runs ?? 0) + stateA.runs,
-      }).eq("id", teamAId),
-      supabase.from("teams").update({
-        points: (teamBRes.data?.points ?? 0) + pointsB,
-        total_runs: (teamBRes.data?.total_runs ?? 0) + stateB.runs,
-      }).eq("id", teamBId),
+      supabase
+        .from("teams")
+        .update({
+          points: (teamARes.data?.points ?? 0) + pointsA,
+          total_runs: (teamARes.data?.total_runs ?? 0) + stateA.runs,
+        })
+        .eq("id", match.team_a_id),
+      supabase
+        .from("teams")
+        .update({
+          points: (teamBRes.data?.points ?? 0) + pointsB,
+          total_runs: (teamBRes.data?.total_runs ?? 0) + stateB.runs,
+        })
+        .eq("id", match.team_b_id),
     ]);
 
     window.location.href = "/fixtures";
-  }, [match, events, matchId, endingMatch, supabase, router]);
+  }, [match, events, matchId, endingMatch, supabase]);
 
-  // ── Derived state ──────────────────────────────────────────────────────────
+  // ── Player card component ──────────────────────────────────────────────────
+
+  function PlayerCard({
+    player,
+    selected,
+    disabled,
+    onTap,
+  }: {
+    player: Player;
+    selected: boolean;
+    disabled: boolean;
+    onTap: () => void;
+  }) {
+    return (
+      <button
+        onClick={onTap}
+        disabled={disabled}
+        className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl transition-all ${
+          selected
+            ? "ring-3 ring-cricket bg-green-50"
+            : disabled
+            ? "opacity-40"
+            : "bg-white hover:bg-gray-50"
+        }`}
+      >
+        <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden shadow">
+          {player.avatar_url ? (
+            <img
+              src={player.avatar_url}
+              alt={playerName(player)}
+              className="h-16 w-16 object-cover rounded-full"
+            />
+          ) : (
+            <span className="text-lg font-black text-gray-500">
+              {playerInitials(player)}
+            </span>
+          )}
+        </div>
+        <span className="text-xs font-bold text-center leading-tight truncate w-full">
+          {player.first_name}
+        </span>
+      </button>
+    );
+  }
+
+  // ── Loading / Error states ─────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -398,21 +637,468 @@ export default function ScorePage() {
 
   if (!match) return null;
 
+  // ── Derived display state ──────────────────────────────────────────────────
+
   const teamAState = deriveInningsState(events, match.team_a_id);
   const teamBState = deriveInningsState(events, match.team_b_id);
+  const netA = calculateMatchScore(teamAState.runs, teamAState.wickets);
+  const netB = calculateMatchScore(teamBState.runs, teamBState.wickets);
 
-  const activeTeamId =
-    activeTab === "a" ? match.team_a_id : match.team_b_id;
-  const activeTeamName =
-    activeTab === "a" ? match.team_a.name : match.team_b.name;
-  const activeState =
-    activeTab === "a" ? teamAState : teamBState;
+  // ── Setup screens ──────────────────────────────────────────────────────────
 
-  const netScore = calculateMatchScore(activeState.runs, activeState.wickets);
-  const overDisplay = `${activeState.overNumber}.${activeState.ballNumber}`;
-  const last6 = getLastSixDeliveries(events, activeTeamId);
+  function renderSetupScreen(
+    battingLabel: string,
+    battingRoster: Player[],
+    fieldingRoster: Player[],
+    pair1: string[],
+    setPair1Fn: (ids: string[]) => void,
+    bowlers: string[],
+    setBowlersFn: (ids: string[]) => void,
+    onStart: () => void
+  ) {
+    const togglePair1 = (id: string) => {
+      if (pair1.includes(id)) {
+        setPair1Fn(pair1.filter((p) => p !== id));
+      } else if (pair1.length < 2) {
+        setPair1Fn([...pair1, id]);
+      }
+    };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+    const toggleBowler = (id: string) => {
+      if (bowlers.includes(id)) {
+        setBowlersFn(bowlers.filter((b) => b !== id));
+      } else if (bowlers.length < 1) {
+        setBowlersFn([...bowlers, id]);
+      }
+    };
+
+    const canStart = pair1.length === 2 && bowlers.length === 1;
+
+    return (
+      <div className="mx-auto max-w-md min-h-screen bg-background pb-10">
+        <div className="bg-cricket px-4 pt-6 pb-4">
+          <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
+            Innings Setup
+          </p>
+          <h1 className="text-cricket-foreground text-xl font-black tracking-tight leading-tight">
+            {battingLabel} Batting
+          </h1>
+        </div>
+
+        <div className="px-4 pt-4 space-y-6">
+          {/* Select Pair 1 */}
+          <Card className="rounded-2xl shadow-md">
+            <CardContent className="px-4 py-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                Select Pair 1
+              </p>
+              <p className="text-xs text-muted-foreground mb-4">
+                Choose 2 batters for Overs 1 &amp; 2
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {battingRoster.map((p) => (
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    selected={pair1.includes(p.id)}
+                    disabled={!pair1.includes(p.id) && pair1.length >= 2}
+                    onTap={() => togglePair1(p.id)}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Select Bowler for Over 1 */}
+          <Card className="rounded-2xl shadow-md">
+            <CardContent className="px-4 py-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                Select Bowler for Over 1
+              </p>
+              <p className="text-xs text-muted-foreground mb-4">
+                Choose 1 bowler from the fielding team
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {fieldingRoster.map((p) => (
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    selected={bowlers.includes(p.id)}
+                    disabled={!bowlers.includes(p.id) && bowlers.length >= 1}
+                    onTap={() => toggleBowler(p.id)}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <button
+            disabled={!canStart}
+            onClick={onStart}
+            className="w-full h-14 rounded-2xl bg-cricket text-white text-base font-black tracking-tight active:scale-[0.98] transition-transform disabled:opacity-40 shadow-md"
+          >
+            Start Innings
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Phase 1: Team A Setup
+  if (phase === "team_a_setup") {
+    return renderSetupScreen(
+      match.team_a.name,
+      playersA,
+      playersB,
+      aPair1,
+      setAPair1,
+      aBowlers,
+      setABowlers,
+      () => setPhase("team_a_innings")
+    );
+  }
+
+  // Phase 3: Team B Setup
+  if (phase === "team_b_setup") {
+    return renderSetupScreen(
+      match.team_b.name,
+      playersB,
+      playersA,
+      bPair1,
+      setBPair1,
+      bBowlers,
+      setBBowlers,
+      () => setPhase("team_b_innings")
+    );
+  }
+
+  // ── Phase 5: Match Complete ────────────────────────────────────────────────
+
+  if (phase === "match_complete") {
+    const winner =
+      netA > netB
+        ? match.team_a.name
+        : netB > netA
+        ? match.team_b.name
+        : null;
+
+    return (
+      <div className="mx-auto max-w-md min-h-screen bg-background pb-10">
+        <div className="bg-cricket px-4 pt-6 pb-4">
+          <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
+            Match Complete
+          </p>
+          <h1 className="text-cricket-foreground text-xl font-black tracking-tight leading-tight">
+            {match.team_a.name} vs {match.team_b.name}
+          </h1>
+        </div>
+
+        <div className="px-4 pt-6 space-y-6">
+          <Card className="rounded-2xl shadow-md">
+            <CardContent className="px-5 py-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="text-center">
+                  <p className="text-xs font-bold text-muted-foreground truncate mb-2">
+                    {match.team_a.name}
+                  </p>
+                  <p className="text-4xl font-black text-foreground">
+                    {teamAState.runs}/{teamAState.wickets}
+                  </p>
+                  <p className="text-sm font-bold text-cricket mt-1">
+                    Net: {netA}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-bold text-muted-foreground truncate mb-2">
+                    {match.team_b.name}
+                  </p>
+                  <p className="text-4xl font-black text-foreground">
+                    {teamBState.runs}/{teamBState.wickets}
+                  </p>
+                  <p className="text-sm font-bold text-cricket mt-1">
+                    Net: {netB}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t text-center">
+                {winner ? (
+                  <p className="text-lg font-black text-foreground">
+                    {winner} wins!
+                  </p>
+                ) : (
+                  <p className="text-lg font-black text-foreground">
+                    Match drawn
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {!match.status && (
+            <button
+              disabled={endingMatch}
+              onClick={submitResults}
+              className="w-full h-14 rounded-2xl bg-cricket text-white text-base font-black tracking-tight active:scale-[0.98] transition-transform disabled:opacity-60 shadow-md"
+            >
+              {endingMatch ? "Submitting..." : "Submit Results"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Phases 2 & 4: Scoring Interface ────────────────────────────────────────
+
+  const isBattingA = phase === "team_a_innings";
+  const scoringTeamId = isBattingA ? match.team_a_id : match.team_b_id;
+  const scoringTeamName = isBattingA ? match.team_a.name : match.team_b.name;
+  const scoringBattingRoster = isBattingA ? playersA : playersB;
+  const scoringFieldingRoster = isBattingA ? playersB : playersA;
+  const scoringState = deriveInningsState(events, scoringTeamId);
+  const scoringNetScore = calculateMatchScore(scoringState.runs, scoringState.wickets);
+
+  const scoringOver = Math.min(scoringState.overNumber, 4);
+  const scoringPair1 = isBattingA ? aPair1 : bPair1;
+  const scoringPair2 = isBattingA ? aPair2 : bPair2;
+  const scoringBowlers = isBattingA ? aBowlers : bBowlers;
+  const scoringCurrentPair = scoringOver <= 2 ? scoringPair1 : scoringPair2;
+  const scoringCurrentBowler =
+    scoringBowlers.length >= scoringOver
+      ? scoringBowlers[scoringOver - 1]
+      : null;
+
+  const pairPlayers = scoringCurrentPair
+    .map((id) => scoringBattingRoster.find((p) => p.id === id))
+    .filter(Boolean) as Player[];
+  const bowlerPlayer = scoringCurrentBowler
+    ? scoringFieldingRoster.find((p) => p.id === scoringCurrentBowler)
+    : null;
+
+  const last6 = getLastSixDeliveries(events, scoringTeamId);
+  const inningsComplete = scoringState.totalLegalBalls >= 24;
+
+  // ── Over transition cards ──────────────────────────────────────────────────
+
+  function renderTransition() {
+    if (!transition) return null;
+
+    const setPair2Fn = isBattingA ? setAPair2 : setBPair2;
+    const currentPair2Sel = isBattingA ? aPair2 : bPair2;
+    const setBowlersFn = isBattingA ? setABowlers : setBBowlers;
+    const currentBowlersList = isBattingA ? aBowlers : bBowlers;
+
+    // After over 4: transition to next phase
+    if (transition === "over_4_done") {
+      return (
+        <Card className="rounded-2xl shadow-md border-2 border-cricket">
+          <CardContent className="px-5 py-6 text-center space-y-4">
+            <p className="text-lg font-black text-foreground">
+              {scoringTeamName} innings complete!
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {scoringState.runs}/{scoringState.wickets} &mdash; Net: {scoringNetScore}
+            </p>
+            <button
+              onClick={() => {
+                setTransition(null);
+                if (isBattingA) {
+                  setPhase("team_b_setup");
+                } else {
+                  setPhase("match_complete");
+                }
+              }}
+              className="w-full h-12 rounded-2xl bg-cricket text-white text-base font-black active:scale-[0.98] transition-transform shadow-md"
+            >
+              {isBattingA ? "Set Up Team B Innings" : "View Results"}
+            </button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // After over 1: select bowler for over 2
+    if (transition === "over_1_done") {
+      const usedBowlers = currentBowlersList;
+
+      return (
+        <Card className="rounded-2xl shadow-md border-2 border-cricket">
+          <CardContent className="px-4 py-5 space-y-4">
+            <p className="text-sm font-black text-foreground">
+              Over 1 complete. Select bowler for Over 2.
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {scoringFieldingRoster.map((p) => {
+                const used = usedBowlers.includes(p.id);
+                return (
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    selected={tempBowlerSelection === p.id}
+                    disabled={used}
+                    onTap={() => {
+                      if (!used) setTempBowlerSelection(p.id);
+                    }}
+                  />
+                );
+              })}
+            </div>
+            <button
+              disabled={!tempBowlerSelection}
+              onClick={() => {
+                if (tempBowlerSelection) {
+                  setBowlersFn([...currentBowlersList, tempBowlerSelection]);
+                  setTempBowlerSelection(null);
+                  setTransition(null);
+                }
+              }}
+              className="w-full h-12 rounded-2xl bg-cricket text-white text-sm font-black active:scale-[0.98] transition-transform disabled:opacity-40 shadow-md"
+            >
+              Confirm &amp; Continue
+            </button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // After over 2: select pair 2 + bowler for over 3
+    if (transition === "over_2_done") {
+      const usedBowlers = currentBowlersList;
+      const pair1Ids = isBattingA ? aPair1 : bPair1;
+
+      const togglePair2 = (id: string) => {
+        if (currentPair2Sel.includes(id)) {
+          setPair2Fn(currentPair2Sel.filter((p) => p !== id));
+        } else if (currentPair2Sel.length < 2) {
+          setPair2Fn([...currentPair2Sel, id]);
+        }
+      };
+
+      return (
+        <Card className="rounded-2xl shadow-md border-2 border-cricket">
+          <CardContent className="px-4 py-5 space-y-4">
+            <p className="text-sm font-black text-foreground">
+              Over 2 complete. Pair 2 now batting.
+            </p>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                Select Pair 2 (Overs 3 &amp; 4)
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {scoringBattingRoster.map((p) => {
+                  const inPair1 = pair1Ids.includes(p.id);
+                  return (
+                    <PlayerCard
+                      key={p.id}
+                      player={p}
+                      selected={currentPair2Sel.includes(p.id)}
+                      disabled={
+                        inPair1 ||
+                        (!currentPair2Sel.includes(p.id) &&
+                          currentPair2Sel.length >= 2)
+                      }
+                      onTap={() => {
+                        if (!inPair1) togglePair2(p.id);
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                Select Bowler for Over 3
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {scoringFieldingRoster.map((p) => {
+                  const used = usedBowlers.includes(p.id);
+                  return (
+                    <PlayerCard
+                      key={p.id}
+                      player={p}
+                      selected={tempBowlerSelection === p.id}
+                      disabled={used}
+                      onTap={() => {
+                        if (!used) setTempBowlerSelection(p.id);
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              disabled={currentPair2Sel.length !== 2 || !tempBowlerSelection}
+              onClick={() => {
+                if (tempBowlerSelection) {
+                  setBowlersFn([...currentBowlersList, tempBowlerSelection]);
+                  setTempBowlerSelection(null);
+                  setTransition(null);
+                }
+              }}
+              className="w-full h-12 rounded-2xl bg-cricket text-white text-sm font-black active:scale-[0.98] transition-transform disabled:opacity-40 shadow-md"
+            >
+              Confirm &amp; Continue
+            </button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // After over 3: select bowler for over 4 (last remaining)
+    if (transition === "over_3_done") {
+      const usedBowlers = currentBowlersList;
+      const remaining = scoringFieldingRoster.filter(
+        (p) => !usedBowlers.includes(p.id)
+      );
+
+      return (
+        <Card className="rounded-2xl shadow-md border-2 border-cricket">
+          <CardContent className="px-4 py-5 space-y-4">
+            <p className="text-sm font-black text-foreground">
+              Over 3 complete. Select bowler for Over 4.
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {scoringFieldingRoster.map((p) => {
+                const used = usedBowlers.includes(p.id);
+                return (
+                  <PlayerCard
+                    key={p.id}
+                    player={p}
+                    selected={tempBowlerSelection === p.id}
+                    disabled={used}
+                    onTap={() => {
+                      if (!used) setTempBowlerSelection(p.id);
+                    }}
+                  />
+                );
+              })}
+            </div>
+            <button
+              disabled={!tempBowlerSelection}
+              onClick={() => {
+                if (tempBowlerSelection) {
+                  setBowlersFn([...currentBowlersList, tempBowlerSelection]);
+                  setTempBowlerSelection(null);
+                  setTransition(null);
+                }
+              }}
+              className="w-full h-12 rounded-2xl bg-cricket text-white text-sm font-black active:scale-[0.98] transition-transform disabled:opacity-40 shadow-md"
+            >
+              Confirm &amp; Continue
+            </button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return null;
+  }
+
+  // ── Main scoring render ────────────────────────────────────────────────────
 
   return (
     <div className="mx-auto max-w-md min-h-screen bg-background pb-10">
@@ -420,10 +1106,7 @@ export default function ScorePage() {
       {error && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-lg">
           {error}
-          <button
-            className="ml-3 underline"
-            onClick={() => setError(null)}
-          >
+          <button className="ml-3 underline" onClick={() => setError(null)}>
             Dismiss
           </button>
         </div>
@@ -432,58 +1115,42 @@ export default function ScorePage() {
       {/* Header */}
       <div className="bg-cricket px-4 pt-6 pb-4">
         <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
-          Ball-by-ball scoring
+          {scoringTeamName} Batting
         </p>
-        <h1 className="text-cricket-foreground text-xl font-black tracking-tight leading-tight">
-          {match.team_a.name} vs {match.team_b.name}
-        </h1>
-      </div>
-
-      {/* Innings tabs */}
-      <div className="flex border-b border-border bg-white sticky top-0 z-10">
-        <button
-          onClick={() => setActiveTab("a")}
-          className={`flex-1 py-3.5 text-sm font-bold tracking-tight transition-colors ${
-            activeTab === "a"
-              ? "text-cricket border-b-[3px] border-cricket"
-              : "text-muted-foreground"
-          }`}
-        >
-          {match.team_a.name}
-        </button>
-        <button
-          onClick={() => setActiveTab("b")}
-          className={`flex-1 py-3.5 text-sm font-bold tracking-tight transition-colors ${
-            activeTab === "b"
-              ? "text-cricket border-b-[3px] border-cricket"
-              : "text-muted-foreground"
-          }`}
-        >
-          {match.team_b.name}
-        </button>
+        <div className="flex items-end gap-4">
+          <span className="text-5xl font-black tracking-tight text-cricket-foreground">
+            {scoringState.runs}/{scoringState.wickets}
+          </span>
+          <div className="mb-1">
+            <p className="text-xs text-cricket-foreground/70 font-semibold">
+              Net Score
+            </p>
+            <p className="text-xl font-black text-cricket-foreground">
+              {scoringNetScore}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-cricket-foreground/70 mt-1">
+          100 + {scoringState.runs} - {scoringState.wickets * 6} = {scoringNetScore}
+        </p>
       </div>
 
       <div className="px-4 pt-4 space-y-4">
-        {/* Score display */}
+        {/* Over / pair / bowler info */}
         <Card className="rounded-2xl shadow-md">
-          <CardContent className="px-5 py-4">
-            <p className="text-sm font-bold text-muted-foreground mb-1">
-              {activeTeamName} batting
+          <CardContent className="px-5 py-4 space-y-1">
+            <p className="text-sm font-bold text-foreground">
+              Over {scoringOver} of 4
             </p>
-            <div className="flex items-end gap-4">
-              <span className="text-5xl font-black tracking-tight text-foreground">
-                {activeState.runs}/{activeState.wickets}
-              </span>
-              <div className="mb-1">
-                <p className="text-xs text-muted-foreground font-semibold">
-                  Net Score
-                </p>
-                <p className="text-xl font-black text-cricket">{netScore}</p>
-              </div>
-            </div>
-            <p className="text-sm font-semibold text-muted-foreground mt-2">
-              Over {overDisplay}
+            <p className="text-sm text-muted-foreground">
+              {scoringOver <= 2 ? "Pair 1" : "Pair 2"}:{" "}
+              {pairPlayers.map((p) => p.first_name).join(" & ")}
             </p>
+            {bowlerPlayer && (
+              <p className="text-sm text-muted-foreground">
+                {playerName(bowlerPlayer)} bowling
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -510,180 +1177,134 @@ export default function ScorePage() {
           </div>
         </div>
 
-        {/* Run buttons */}
-        <Card className="rounded-2xl shadow-md">
-          <CardContent className="px-4 py-5">
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
-              Runs
-            </p>
-            <div className="grid grid-cols-3 gap-3 place-items-center">
-              {/* 0 — dot ball */}
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 0 })}
-                className="h-20 w-20 rounded-full bg-gray-200 text-gray-600 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-              >
-                0
-              </button>
+        {/* Transition card (if any) */}
+        {transition && renderTransition()}
 
-              {/* 1 */}
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 1 })}
-                className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-              >
-                1
-              </button>
+        {/* Scoring buttons — hidden during transitions */}
+        {!transition && !inningsComplete && (
+          <>
+            {/* Run buttons */}
+            <Card className="rounded-2xl shadow-md">
+              <CardContent className="px-4 py-5">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
+                  Runs
+                </p>
+                <div className="grid grid-cols-3 gap-3 place-items-center">
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 0 })}
+                    className="h-20 w-20 rounded-full bg-gray-200 text-gray-600 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
+                  >
+                    0
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 1 })}
+                    className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
+                  >
+                    1
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 2 })}
+                    className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
+                  >
+                    2
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 3 })}
+                    className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
+                  >
+                    3
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 4 })}
+                    className="h-20 w-20 rounded-full bg-cricket text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow-md"
+                  >
+                    4
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() => insertEvent({ runs: 6 })}
+                    className="h-20 w-20 rounded-full bg-cricket text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow-md"
+                  >
+                    6
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* 2 */}
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 2 })}
-                className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-              >
-                2
-              </button>
-
-              {/* 3 */}
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 3 })}
-                className="h-20 w-20 rounded-full bg-white border-2 border-gray-300 text-gray-800 text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow"
-              >
-                3
-              </button>
-
-              {/* 4 — boundary */}
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 4 })}
-                className="h-20 w-20 rounded-full bg-cricket text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow-md"
-              >
-                4
-              </button>
-
-              {/* 6 — six */}
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 6 })}
-                className="h-20 w-20 rounded-full bg-cricket text-white text-2xl font-black active:scale-95 transition-transform disabled:opacity-50 shadow-md"
-              >
-                6
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Wicket button */}
-        <button
-          disabled={saving}
-          onClick={() => insertEvent({ runs: 0, isWicket: true })}
-          className="w-full h-16 rounded-2xl bg-red-500 text-white text-xl font-black tracking-tight active:scale-[0.98] transition-transform disabled:opacity-50 shadow-md"
-        >
-          WICKET
-        </button>
-
-        {/* Extras row */}
-        <Card className="rounded-2xl shadow-md">
-          <CardContent className="px-4 py-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">
-              Extras
-            </p>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 1, extraType: "wide" })}
-                className="h-14 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
-              >
-                Wide
-                <span className="block text-xs font-semibold">+1</span>
-              </button>
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 1, extraType: "no_ball" })}
-                className="h-14 rounded-xl bg-orange-100 text-orange-800 border border-orange-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
-              >
-                No Ball
-                <span className="block text-xs font-semibold">+1</span>
-              </button>
-              <button
-                disabled={saving}
-                onClick={() => insertEvent({ runs: 0, extraType: "bye" })}
-                className="h-14 rounded-xl bg-gray-100 text-gray-700 border border-gray-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
-              >
-                Bye
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Undo */}
-        <div className="flex justify-end">
-          <button
-            disabled={saving}
-            onClick={undoLast}
-            className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground active:opacity-70 transition-opacity disabled:opacity-40"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
+            {/* Wicket button */}
+            <button
+              disabled={saving}
+              onClick={() => insertEvent({ runs: 0, isWicket: true })}
+              className="w-full h-16 rounded-2xl bg-red-500 text-white text-xl font-black tracking-tight active:scale-[0.98] transition-transform disabled:opacity-50 shadow-md"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-              />
-            </svg>
-            Undo Last
-          </button>
-        </div>
+              WICKET (-6 runs)
+            </button>
 
-        {/* Match summary */}
-        <Card className="rounded-2xl shadow-md">
-          <CardContent className="px-5 py-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">
-              Match Summary
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Team A */}
-              <div className="text-center">
-                <p className="text-xs font-bold text-muted-foreground truncate mb-1">
-                  {match.team_a.name}
+            {/* Extras */}
+            <Card className="rounded-2xl shadow-md">
+              <CardContent className="px-4 py-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">
+                  Extras
                 </p>
-                <p className="text-3xl font-black text-foreground">
-                  {teamAState.runs}/{teamAState.wickets}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Net {calculateMatchScore(teamAState.runs, teamAState.wickets)}
-                </p>
-              </div>
-              {/* Team B */}
-              <div className="text-center">
-                <p className="text-xs font-bold text-muted-foreground truncate mb-1">
-                  {match.team_b.name}
-                </p>
-                <p className="text-3xl font-black text-foreground">
-                  {teamBState.runs}/{teamBState.wickets}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Net {calculateMatchScore(teamBState.runs, teamBState.wickets)}
-                </p>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    disabled={saving}
+                    onClick={() =>
+                      insertEvent({ runs: 1, extraType: "wide" })
+                    }
+                    className="h-14 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    Wide
+                    <span className="block text-xs font-semibold">
+                      +1, no ball count
+                    </span>
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={() =>
+                      insertEvent({ runs: 1, extraType: "no_ball" })
+                    }
+                    className="h-14 rounded-xl bg-orange-100 text-orange-800 border border-orange-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    No Ball
+                    <span className="block text-xs font-semibold">
+                      +1, no ball count
+                    </span>
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Undo */}
+            <div className="flex justify-end">
+              <button
+                disabled={saving}
+                onClick={undoLast}
+                className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground active:opacity-70 transition-opacity disabled:opacity-40"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
+                  />
+                </svg>
+                Undo Last
+              </button>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* End match */}
-        <button
-          disabled={endingMatch}
-          onClick={endMatch}
-          className="w-full h-14 rounded-2xl bg-cricket text-white text-base font-black tracking-tight active:scale-[0.98] transition-transform disabled:opacity-60 shadow-md"
-        >
-          {endingMatch ? "Ending match…" : "End Match"}
-        </button>
+          </>
+        )}
       </div>
     </div>
   );

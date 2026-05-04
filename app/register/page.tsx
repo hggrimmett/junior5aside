@@ -231,6 +231,7 @@ export default function RegisterPage() {
       role,
       full_name: data.fullName.trim(),
       mobile_number: data.mobile.trim(),
+      email: data.email,
     });
 
     if (profileErr) {

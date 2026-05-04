@@ -68,6 +68,7 @@ export default function RegisterMentorPage() {
       role: "mentor",
       full_name: fullName.trim(),
       mobile_number: mobile.trim(),
+      email: email.trim(),
     });
 
     if (profileErr) {
