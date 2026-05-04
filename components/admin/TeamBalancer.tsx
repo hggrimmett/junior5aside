@@ -120,18 +120,12 @@ function PlayerAvatar({
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: player.id });
 
-  // Tap detection: if pointer down + up without drag (no movement), show dialog
-  const didDrag = React.useRef(false);
-
-  function handleDragStarted() {
-    didDrag.current = true;
-  }
+  // Tap detection: click fires only if we didn't drag
   function handleClick() {
-    // Only fire if we didn't drag (dnd-kit activation = 5px movement)
-    if (!didDrag.current) {
+    // isDragging is true if dnd-kit activated a drag — if so, ignore the click
+    if (!isDragging) {
       onLongPress?.(player);
     }
-    didDrag.current = false;
   }
 
   const styles = COLOUR_STYLES[colour];
@@ -170,8 +164,6 @@ function PlayerAvatar({
       ref={(node) => { setDragRef(node); setDropRef(node); }}
       {...listeners}
       {...attributes}
-      onPointerDown={() => { didDrag.current = false; }}
-      onPointerMove={() => { didDrag.current = true; }}
       onClick={handleClick}
       className="cursor-grab touch-none transition-transform active:scale-110"
     >

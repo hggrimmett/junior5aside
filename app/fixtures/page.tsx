@@ -145,7 +145,6 @@ export default function FixturesPage() {
         .select(
           "id, tournament_id, team_a:teams!team_a_id(id, name, mentor_id), team_b:teams!team_b_id(id, name, mentor_id), score_a, score_b, wickets_a, wickets_b, status, scheduled_time, match_type, locked_by, locked_by_name"
         )
-        .order("scheduled_time", { ascending: true, nullsFirst: false })
         .returns<MatchRow[]>(),
       // Fetch distinct match_ids from match_events where the linked match is not yet complete
       // We do this by fetching match_events and cross-referencing with status=false matches
