@@ -56,6 +56,7 @@ export default function MatchEventsPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [events, setEvents] = useState<MatchEvent[]>([]);
+  const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,7 +89,18 @@ export default function MatchEventsPage() {
         .eq("id", matchId)
         .single();
 
-      if (matchData) setMatch(matchData as unknown as Match);
+      if (matchData) {
+        setMatch(matchData as unknown as Match);
+        // Fetch player names for both teams
+        const m = matchData as any;
+        const { data: players } = await supabase
+          .from("players")
+          .select("id, first_name")
+          .or(`team_id.eq.${m.team_a_id},team_id.eq.${m.team_b_id}`);
+        const names: Record<string, string> = {};
+        for (const p of players ?? []) names[p.id] = p.first_name;
+        setPlayerNames(names);
+      }
       await fetchEvents();
       setLoading(false);
     }
@@ -269,9 +281,12 @@ export default function MatchEventsPage() {
                       </Badge>
                       <div className="flex-1 min-w-0">
                         <span className="text-xs font-semibold">
-                          Ball {e.ball_number} — {e.runs} run{e.runs !== 1 ? "s" : ""}
-                          {e.is_wicket ? " + WICKET" : ""}
+                          {e.batter_id ? playerNames[e.batter_id] ?? "" : ""} {e.runs} run{e.runs !== 1 ? "s" : ""}
+                          {e.is_wicket ? " WICKET" : ""}
                           {e.extra_type ? ` (${e.extra_type})` : ""}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground ml-1">
+                          {e.bowler_id ? `bowled by ${playerNames[e.bowler_id] ?? ""}` : ""}
                         </span>
                       </div>
                       <button
