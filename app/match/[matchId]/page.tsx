@@ -226,15 +226,11 @@ export default function MatchCentrePage() {
   const teamAMaxOver = teamAEvents.length > 0
     ? Math.max(...teamAEvents.map((e) => e.over_number))
     : 0;
-  const teamABallsPlayed = teamAEvents.filter(
-    (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
-  ).length;
-  // Balls bowled at Team B so far (legal deliveries)
-  const teamBLegalBalls = teamBEvents.filter(
-    (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
-  ).length;
-  const totalLegalBalls = teamAMaxOver * 6; // max balls = same overs as Team A faced
-  const ballsRemaining = Math.max(0, totalLegalBalls - teamBLegalBalls);
+  // All balls count (wides/no-balls not rebowled in Barrington Pairs)
+  const teamABallsPlayed = teamAEvents.length;
+  const teamBBallsPlayed = teamBEvents.length;
+  const totalBalls = 24; // 4 overs × 6 balls
+  const ballsRemaining = Math.max(0, totalBalls - teamBBallsPlayed);
   const runsNeeded = Math.max(0, netScoreA - netScoreB + 1);
 
   // Winner

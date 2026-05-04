@@ -78,10 +78,8 @@ function deriveInningsState(events: MatchEvent[], teamId: string) {
   const innings = events.filter((e) => e.team_id === teamId);
   const runs = innings.reduce((sum, e) => sum + e.runs, 0);
   const wickets = innings.filter((e) => e.is_wicket).length;
-  const legalBalls = innings.filter(
-    (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
-  );
-  const totalLegalBalls = legalBalls.length;
+  // All deliveries count as legal balls (wides/no-balls are NOT rebowled)
+  const totalLegalBalls = innings.length;
   const overNumber = Math.floor(totalLegalBalls / 6) + 1; // 1-based over
   const ballInOver = totalLegalBalls % 6; // balls bowled in current over (0-5)
   return { runs, wickets, totalLegalBalls, overNumber, ballInOver };
@@ -127,15 +125,10 @@ function derivePairsFromEvents(
   const pair2Ids = new Set<string>();
   innings.forEach((e) => {
     if (!e.batter_id) return;
-    const legalBefore = innings
-      .filter(
-        (ev) =>
-          ev.extra_type !== "wide" &&
-          ev.extra_type !== "no_ball" &&
-          ev.created_at < e.created_at
-      ).length;
-    // Overs 1-2 (first 12 legal balls) = pair 1, overs 3-4 = pair 2
-    const overNum = Math.floor(legalBefore / 6) + 1;
+    // All balls count (wides/no-balls are not rebowled)
+    const ballsBefore = innings.filter((ev) => ev.created_at < e.created_at).length;
+    // Overs 1-2 (first 12 balls) = pair 1, overs 3-4 = pair 2
+    const overNum = Math.floor(ballsBefore / 6) + 1;
     if (overNum <= 2) pair1Ids.add(e.batter_id);
     else pair2Ids.add(e.batter_id);
   });
@@ -275,12 +268,9 @@ export default function ScorePage() {
       // Derive phase from existing events
       const teamAEvents = existingEvents.filter((e) => e.team_id === m.team_a_id);
       const teamBEvents = existingEvents.filter((e) => e.team_id === m.team_b_id);
-      const teamALegal = teamAEvents.filter(
-        (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
-      ).length;
-      const teamBLegal = teamBEvents.filter(
-        (e) => e.extra_type !== "wide" && e.extra_type !== "no_ball"
-      ).length;
+      // All balls count as legal (wides/no-balls not rebowled)
+      const teamALegal = teamAEvents.length;
+      const teamBLegal = teamBEvents.length;
 
       if (m.status === true) {
         setPhase("match_complete");
@@ -395,11 +385,9 @@ export default function ScorePage() {
 
       setSaving(true);
 
-      const isExtra =
-        opts.extraType === "wide" || opts.extraType === "no_ball";
-
+      // All deliveries count as legal balls (wides/no-balls not rebowled)
       const overNum = Math.min(state.overNumber, 4);
-      const ballNum = isExtra ? state.ballInOver : state.ballInOver + 1;
+      const ballNum = state.ballInOver + 1;
 
       // Determine batter — alternate between pair members
       const pair = overNum <= 2 ? currentPair1 : currentPair2;
@@ -1255,54 +1243,52 @@ export default function ScorePage() {
                   <button
                     disabled={saving}
                     onClick={() =>
-                      insertEvent({ runs: 1, extraType: "wide" })
+                      insertEvent({ runs: 2, extraType: "wide" })
                     }
                     className="h-14 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
                   >
                     Wide
                     <span className="block text-xs font-semibold">
-                      +1, no ball count
+                      +2 runs, counts as ball
                     </span>
                   </button>
                   <button
                     disabled={saving}
                     onClick={() =>
-                      insertEvent({ runs: 1, extraType: "no_ball" })
+                      insertEvent({ runs: 2, extraType: "no_ball" })
                     }
                     className="h-14 rounded-xl bg-orange-100 text-orange-800 border border-orange-300 text-sm font-black active:scale-95 transition-transform disabled:opacity-50"
                   >
                     No Ball
                     <span className="block text-xs font-semibold">
-                      +1, no ball count
+                      +2 runs, counts as ball
                     </span>
                   </button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Undo */}
-            <div className="flex justify-end">
-              <button
-                disabled={saving}
-                onClick={undoLast}
-                className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground active:opacity-70 transition-opacity disabled:opacity-40"
+            {/* Undo — big fat-finger friendly button */}
+            <button
+              disabled={saving}
+              onClick={undoLast}
+              className="w-full h-14 rounded-2xl bg-amber-500 text-white text-base font-black tracking-tight flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50 shadow-md"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
               >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-                  />
-                </svg>
-                Undo Last
-              </button>
-            </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
+                />
+              </svg>
+              UNDO LAST BALL
+            </button>
           </>
         )}
       </div>

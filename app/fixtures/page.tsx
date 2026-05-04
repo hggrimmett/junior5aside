@@ -479,6 +479,16 @@ function MatchCard({
                 </svg>
               </Link>
             )}
+
+            {/* Admin edit events link */}
+            {isSuperadminOrCoach && !isUpcoming && (
+              <Link
+                href={`/admin/match-events/${match.id}`}
+                className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-muted-foreground transition-opacity active:opacity-80"
+              >
+                Edit
+              </Link>
+            )}
           </div>
         </div>
       </CardContent>
