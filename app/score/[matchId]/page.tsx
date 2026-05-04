@@ -1233,19 +1233,11 @@ export default function ScorePage() {
           </CardContent>
         </Card>
 
-        {/* This Over — balls bowled + remaining */}
+        {/* This Over — progressively filled circles */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-              This Over
-            </p>
-            <p className="text-sm font-black text-foreground">
-              {scoringState.ballInOver}/6
-              <span className="text-muted-foreground font-semibold ml-1">
-                ({ballsLeftInOver} left)
-              </span>
-            </p>
-          </div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            This Over
+          </p>
           <div className="flex gap-2">
             {[0, 1, 2, 3, 4, 5].map((i) => {
               const label = currentOverBalls[i];
