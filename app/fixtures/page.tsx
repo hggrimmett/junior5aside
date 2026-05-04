@@ -294,11 +294,15 @@ function PitchSection({
   userId: string | null;
   userRole: string | null;
 }) {
+  const [expanded, setExpanded] = useState(true);
+  const liveCount = matches.filter((m) => m.matchStatus === "live").length;
+
   return (
     <div className="space-y-3">
-      {/* Section header */}
-      <div
-        className={`rounded-2xl px-4 py-3 ${pitch.headerBg} ${pitch.headerText} shadow-md`}
+      {/* Section header — tappable to expand/collapse */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`w-full rounded-2xl px-4 py-3 ${pitch.headerBg} ${pitch.headerText} shadow-md text-left active:scale-[0.99] transition-transform`}
       >
         <div className="flex items-center justify-between">
           <div>
@@ -309,14 +313,28 @@ function PitchSection({
               {pitch.years}
             </p>
           </div>
-          <span className="text-xs font-bold opacity-70">
-            {matches.length} match{matches.length !== 1 ? "es" : ""}
-          </span>
+          <div className="flex items-center gap-2">
+            {liveCount > 0 && (
+              <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                {liveCount} live
+              </span>
+            )}
+            <span className="text-xs font-bold opacity-70">
+              {matches.length}
+            </span>
+            <svg
+              className={`h-4 w-4 opacity-70 transition-transform ${expanded ? "rotate-180" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
-      </div>
+      </button>
 
-      {/* Match cards */}
-      {matches.length === 0 ? (
+      {/* Match cards — collapsible */}
+      {!expanded ? null : matches.length === 0 ? (
         <Card className="rounded-xl shadow-sm">
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
             No fixtures scheduled yet.
