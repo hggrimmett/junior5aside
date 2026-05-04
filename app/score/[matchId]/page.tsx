@@ -1302,6 +1302,11 @@ export default function ScorePage() {
             <span className="text-lg font-black text-cricket-foreground/80">
               Net {scoringNetScore}
             </span>
+            {phase === "team_b_innings" && match && (
+              <span className="text-sm font-bold text-amber-300">
+                Target {calculateMatchScore(deriveInningsState(events, match.team_a_id).runs, deriveInningsState(events, match.team_a_id).wickets) + 1}
+              </span>
+            )}
           </div>
         </div>
         {/* Menu button */}
