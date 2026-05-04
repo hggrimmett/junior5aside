@@ -257,6 +257,25 @@ export default function ScorePage() {
         return;
       }
 
+      // Check if user already has another match locked
+      if (!m.locked_by || m.locked_by !== user.id) {
+        const { data: existingLocks } = await supabase
+          .from("matches")
+          .select("id, team_a:teams!team_a_id(name), team_b:teams!team_b_id(name)")
+          .eq("locked_by", user.id)
+          .neq("id", matchId)
+          .eq("status", false);
+
+        if (existingLocks && existingLocks.length > 0) {
+          const otherMatch = existingLocks[0] as any;
+          const otherName = `${otherMatch.team_a?.name ?? "?"} vs ${otherMatch.team_b?.name ?? "?"}`;
+          setError(`You are already scoring "${otherName}". Submit or leave that match before starting another.`);
+          setMatch(m);
+          setLoading(false);
+          return;
+        }
+      }
+
       // Acquire the lock if not already ours
       if (!m.locked_by) {
         await supabase.from("matches").update({
