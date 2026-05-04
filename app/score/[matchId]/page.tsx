@@ -134,7 +134,12 @@ export default function ScorePage() {
         .eq("id", user.id)
         .single();
 
-      if (!profile || (profile.role !== "superadmin" && profile.role !== "coach")) {
+      if (
+        !profile ||
+        (profile.role !== "superadmin" &&
+          profile.role !== "coach" &&
+          profile.role !== "mentor")
+      ) {
         router.replace("/dashboard");
         return;
       }
@@ -154,6 +159,23 @@ export default function ScorePage() {
         setError("Match not found.");
         setLoading(false);
         return;
+      }
+
+      // Mentor access check: only the mentor of team_a or team_b may score
+      if (profile.role === "mentor") {
+        const { data: teamsData } = await supabase
+          .from("teams")
+          .select("id, mentor_id")
+          .in("id", [matchData.team_a_id, matchData.team_b_id]);
+
+        const isMentorOfMatch = teamsData?.some(
+          (team) => team.mentor_id === user.id
+        );
+
+        if (!isMentorOfMatch) {
+          window.location.href = "/home";
+          return;
+        }
       }
 
       setMatch(matchData as unknown as Match);

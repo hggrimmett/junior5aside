@@ -50,6 +50,8 @@ const COLOUR_BADGE: Record<TournamentColour, string> = {
   Blue:  "bg-blue-100 text-blue-800 border-blue-200",
 };
 
+const PITCH_MAP: Record<string, number> = { Blue: 1, Red: 2, Green: 3 };
+
 // ── Spinner ────────────────────────────────────────────────
 
 function Spinner() {
@@ -102,6 +104,9 @@ export default function TournamentsPage() {
   const [newMaxSize, setNewMaxSize] = useState(5);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // ── Generate fixtures state ───────────────────────────────
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   // ── Auth guard ────────────────────────────────────────────
 
@@ -452,6 +457,92 @@ export default function TournamentsPage() {
     e.target.value = "";
   }
 
+  // ── Generate fixtures ─────────────────────────────────────
+
+  function generateRoundRobin(teams: { id: string; name: string }[]) {
+    const list = [...teams];
+    if (list.length % 2 !== 0) list.push({ id: "__bye__", name: "BYE" });
+    const n = list.length;
+    const pairs: [{ id: string; name: string }, { id: string; name: string }][] = [];
+    for (let round = 0; round < n - 1; round++) {
+      for (let i = 0; i < n / 2; i++) {
+        const home = list[i];
+        const away = list[n - 1 - i];
+        if (home.id !== "__bye__" && away.id !== "__bye__") pairs.push([home, away]);
+      }
+      const last = list.pop()!;
+      list.splice(1, 0, last);
+    }
+    return pairs;
+  }
+
+  async function handleGenerateFixtures(tournament: Tournament) {
+    setGeneratingId(tournament.id);
+    setError(null);
+
+    // 1. Fetch all teams for this tournament
+    const { data: teamsData, error: teamsErr } = await supabase
+      .from("teams")
+      .select("id, name")
+      .eq("tournament_id", tournament.id);
+
+    if (teamsErr) {
+      setError(teamsErr.message);
+      setGeneratingId(null);
+      return;
+    }
+
+    const teams = teamsData ?? [];
+
+    // 2. Need at least 2 teams
+    if (teams.length < 2) {
+      setError(`Not enough teams in ${tournament.name} — need at least 2 to generate fixtures.`);
+      setGeneratingId(null);
+      return;
+    }
+
+    // 3. Generate round-robin pairs
+    const pairs = generateRoundRobin(teams);
+
+    // 4. Delete existing unplayed matches for this tournament
+    const { error: deleteErr } = await supabase
+      .from("matches")
+      .delete()
+      .eq("tournament_id", tournament.id)
+      .eq("status", false);
+
+    if (deleteErr) {
+      setError(deleteErr.message);
+      setGeneratingId(null);
+      return;
+    }
+
+    // 5. Bulk insert new matches
+    const rows = pairs.map(([home, away]) => ({
+      tournament_id: tournament.id,
+      team_a_id: home.id,
+      team_b_id: away.id,
+      score_a: 0,
+      score_b: 0,
+      wickets_a: 0,
+      wickets_b: 0,
+      status: false,
+      scheduled_time: null,
+    }));
+
+    const { error: insertErr } = await supabase.from("matches").insert(rows);
+
+    if (insertErr) {
+      setError(insertErr.message);
+      setGeneratingId(null);
+      return;
+    }
+
+    // 6. Toast
+    showToast(`${pairs.length} fixtures generated for ${tournament.name}`);
+    setGeneratingId(null);
+  }
+
   // ── Toast helper ──────────────────────────────────────────
 
   function showToast(msg: string) {
@@ -676,6 +767,25 @@ export default function TournamentsPage() {
                     <p className="mb-4 text-sm font-black">
                       Team Balancer — {tournament.name}
                     </p>
+
+                    {/* Generate Fixtures */}
+                    <button
+                      onClick={() => handleGenerateFixtures(tournament)}
+                      disabled={generatingId === tournament.id}
+                      className="mb-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-[#114232] bg-transparent text-sm font-bold text-[#114232] transition-colors hover:bg-[#114232]/5 active:bg-[#114232]/10 disabled:opacity-60"
+                    >
+                      {generatingId === tournament.id ? (
+                        <><Spinner /> Generating...</>
+                      ) : (
+                        <>
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Generate Fixtures
+                        </>
+                      )}
+                    </button>
+
                     <TeamBalancer tournamentId={tournament.id} />
                   </div>
                 )}

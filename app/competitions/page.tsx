@@ -39,6 +39,28 @@ export default function CompetitionsPage() {
         Competitions
       </h2>
 
+      {/* Fixtures & Schedule link */}
+      <Link href="/fixtures">
+        <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform border-l-[4px] border-l-cricket">
+          <CardContent className="flex items-center justify-between px-5 py-4">
+            <div className="flex items-center gap-3">
+              <svg className="h-6 w-6 text-cricket" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <div>
+                <p className="font-extrabold tracking-tight text-foreground leading-tight">
+                  Fixtures &amp; Schedule
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  All matches by pitch
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-bold text-muted-foreground">→</span>
+          </CardContent>
+        </Card>
+      </Link>
+
       {/* All standings link */}
       <Link href="/standings">
         <Card className="rounded-2xl shadow-md cursor-pointer active:scale-[0.98] transition-transform border-l-[4px] border-l-cricket">
