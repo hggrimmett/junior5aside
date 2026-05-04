@@ -117,6 +117,18 @@ export default function FixturesPage() {
   const [byColour, setByColour] = useState<
     Record<TournamentColour, EnrichedMatch[]>
   >({ Blue: [], Red: [], Green: [] });
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Fetch user role (optional — page still works for anonymous)
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+      supabase.from("profiles").select("role").eq("id", user.id).single<{ role: string }>()
+        .then(({ data }) => { if (data) setUserRole(data.role); });
+    });
+  }, [supabase]);
 
   // ── Fetch & enrich ────────────────────────────────────────
 
@@ -256,6 +268,8 @@ export default function FixturesPage() {
                 key={pitch.colour}
                 pitch={pitch}
                 matches={matches}
+                userId={userId}
+                userRole={userRole}
               />
             );
           })}
@@ -270,9 +284,13 @@ export default function FixturesPage() {
 function PitchSection({
   pitch,
   matches,
+  userId,
+  userRole,
 }: {
   pitch: (typeof PITCHES)[number];
   matches: EnrichedMatch[];
+  userId: string | null;
+  userRole: string | null;
 }) {
   return (
     <div className="space-y-3">
@@ -309,6 +327,8 @@ function PitchSection({
               key={match.id}
               match={match}
               pitch={pitch}
+              userId={userId}
+              userRole={userRole}
             />
           ))}
         </div>
@@ -322,15 +342,27 @@ function PitchSection({
 function MatchCard({
   match,
   pitch,
+  userId,
+  userRole,
 }: {
   match: EnrichedMatch;
   pitch: (typeof PITCHES)[number];
+  userId: string | null;
+  userRole: string | null;
 }) {
   const teamAName = match.team_a?.name ?? "TBC";
   const teamBName = match.team_b?.name ?? "TBC";
   const isLive = match.matchStatus === "live";
   const isCompleted = match.matchStatus === "completed";
   const isUpcoming = match.matchStatus === "upcoming";
+
+  // Can this user score this match?
+  const isSuperadminOrCoach = userRole === "superadmin" || userRole === "coach";
+  const isMentorOfMatch =
+    userRole === "mentor" &&
+    userId &&
+    (match.team_a?.mentor_id === userId || match.team_b?.mentor_id === userId);
+  const canScore = !isCompleted && (isSuperadminOrCoach || isMentorOfMatch);
 
   return (
     <Card
@@ -426,6 +458,19 @@ function MatchCard({
                   strokeWidth={2.5}
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            )}
+
+            {/* Score button — only for authorized users */}
+            {canScore && (
+              <Link
+                href={`/score/${match.id}`}
+                className="inline-flex items-center gap-1 rounded-lg bg-cricket px-3 py-1.5 text-[11px] font-extrabold text-white transition-opacity active:opacity-80"
+              >
+                Score
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
               </Link>
             )}

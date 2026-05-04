@@ -307,6 +307,7 @@ export default function ScorePage() {
     const stateA = deriveInningsState(events, match.team_a_id);
     const stateB = deriveInningsState(events, match.team_b_id);
 
+    // 1. Update match with final scores
     const { error: updateErr } = await supabase
       .from("matches")
       .update({
@@ -321,9 +322,42 @@ export default function ScorePage() {
     if (updateErr) {
       setError("Failed to end match. Please try again.");
       setEndingMatch(false);
-    } else {
-      router.replace("/dashboard");
+      return;
     }
+
+    // 2. Calculate net scores (100 + runs - 6*wickets)
+    const netA = calculateMatchScore(stateA.runs, stateA.wickets);
+    const netB = calculateMatchScore(stateB.runs, stateB.wickets);
+
+    // 3. Determine points: Win=3, Draw=1, Loss=0
+    let pointsA = 0;
+    let pointsB = 0;
+    if (netA > netB) { pointsA = 3; }
+    else if (netB > netA) { pointsB = 3; }
+    else { pointsA = 1; pointsB = 1; }
+
+    // 4. Increment team points and total_runs
+    // Using raw SQL via rpc would be cleaner, but increment with fetch+update works
+    const teamAId = match.team_a_id;
+    const teamBId = match.team_b_id;
+
+    const [teamARes, teamBRes] = await Promise.all([
+      supabase.from("teams").select("points, total_runs").eq("id", teamAId).single(),
+      supabase.from("teams").select("points, total_runs").eq("id", teamBId).single(),
+    ]);
+
+    await Promise.all([
+      supabase.from("teams").update({
+        points: (teamARes.data?.points ?? 0) + pointsA,
+        total_runs: (teamARes.data?.total_runs ?? 0) + stateA.runs,
+      }).eq("id", teamAId),
+      supabase.from("teams").update({
+        points: (teamBRes.data?.points ?? 0) + pointsB,
+        total_runs: (teamBRes.data?.total_runs ?? 0) + stateB.runs,
+      }).eq("id", teamBId),
+    ]);
+
+    window.location.href = "/fixtures";
   }, [match, events, matchId, endingMatch, supabase, router]);
 
   // ── Derived state ──────────────────────────────────────────────────────────
