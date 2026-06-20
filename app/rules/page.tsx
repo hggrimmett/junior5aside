@@ -22,7 +22,10 @@ export default function RulesPage() {
           help their team win.
         </Rule>
         <Rule>Each side <strong>starts on 100 runs</strong> per game.</Rule>
-        <Rule>Each match is <strong>5 overs per side</strong>.</Rule>
+        <Rule>
+          Each match is <strong>4 overs per innings</strong> — total of 8
+          overs per game.
+        </Rule>
         <Rule>
           The team batting first is listed first in the tournament schedule.
         </Rule>
@@ -30,8 +33,7 @@ export default function RulesPage() {
 
       <Section title="Batting">
         <Rule>
-          Batters bat in <strong>pairs for 2 overs each</strong> per game. One
-          team member will bat twice — the mentor picks who.
+          Batters bat in <strong>pairs for 2 overs each</strong> per game.
         </Rule>
         <Rule>
           Each wicket costs the batting side <strong>6 runs</strong>.
@@ -74,10 +76,6 @@ export default function RulesPage() {
         <Rule>
           In the event of a points tie, <strong>total runs scored across the
           tournament</strong> is the tie-breaker.
-        </Rule>
-        <Rule className="italic">
-          If the runs are also tied, I&apos;ll give up and get myself a large
-          glass of red…
         </Rule>
         <Rule>
           The final is played in the same format as above — no extra balls.
