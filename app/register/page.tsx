@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { AvatarUpload } from "@/components/ui/avatar-upload";
 import { uploadPlayerPhoto } from "@/lib/upload-photo";
+import { sendParentWelcomeEmail } from "./actions";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -147,6 +148,8 @@ export default function RegisterPage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [parentUid, setParentUid] = useState<string | null>(null);
+  const [parentEmail, setParentEmail] = useState<string>("");
+  const [parentName, setParentName] = useState<string>("");
   const [done, setDone] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -224,6 +227,8 @@ export default function RegisterPage() {
     }
 
     setParentUid(uid);
+    setParentEmail(data.email);
+    setParentName(data.fullName.trim());
     setStep(2);
   }
 
@@ -249,6 +254,13 @@ export default function RegisterPage() {
       setServerError(insertErr.message);
       return;
     }
+
+    // Fire-and-forget welcome email. Failures don't block the user.
+    void sendParentWelcomeEmail({
+      email: parentEmail,
+      parentName,
+      childrenNames: (inserted ?? []).map((p) => p.name),
+    });
 
     // Transition to photo upload step
     setPlayerIds(inserted ?? []);
