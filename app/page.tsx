@@ -1,6 +1,19 @@
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
 
 export default function HomePage() {
+  // Safety net: Supabase password-reset links land here with ?code=...
+  // when the Redirect URLs allow-list doesn't include /reset-password.
+  // Forward the user (and their code) to the proper page.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("code")) {
+      window.location.replace(`/reset-password${window.location.search}`);
+    }
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#f5f5f5] px-6 py-16">
       <div className="w-full max-w-md space-y-8">
