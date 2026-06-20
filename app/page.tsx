@@ -61,7 +61,7 @@ export default function HomePage() {
               <dt className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 When
               </dt>
-              <dd className="mt-1 text-sm font-bold text-foreground">{/* TODO */}TBC</dd>
+              <dd className="mt-1 text-sm font-bold text-foreground">12 Jul</dd>
             </div>
             <div>
               <dt className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
