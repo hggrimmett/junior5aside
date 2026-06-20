@@ -5,7 +5,6 @@ import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { verifyMentorAccessCode } from "./actions";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -26,12 +25,6 @@ function CheckIcon() {
 export default function RegisterMentorPage() {
   const supabase = getSupabaseBrowserClient();
 
-  // Access code step
-  const [code, setCode] = useState("");
-  const [codeError, setCodeError] = useState<string | null>(null);
-  const [codeAccepted, setCodeAccepted] = useState(false);
-  const [codeChecking, setCodeChecking] = useState(false);
-
   // Registration form
   const [fullName, setFullName] = useState("");
   const [mobile, setMobile] = useState("");
@@ -40,22 +33,6 @@ export default function RegisterMentorPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-
-  async function handleCodeSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setCodeError(null);
-    setCodeChecking(true);
-    try {
-      const { ok } = await verifyMentorAccessCode(code);
-      if (ok) {
-        setCodeAccepted(true);
-      } else {
-        setCodeError("Invalid access code. Please check with your organiser.");
-      }
-    } finally {
-      setCodeChecking(false);
-    }
-  }
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -165,47 +142,6 @@ export default function RegisterMentorPage() {
                 </Link>
               </div>
             </div>
-          ) : !codeAccepted ? (
-            /* ── Access code gate ── */
-            <form onSubmit={handleCodeSubmit} className="space-y-4" noValidate>
-              <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-                Enter Access Code
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Mentor registration requires an access code. Contact your organiser if you don&apos;t have one.
-              </p>
-
-              {codeError && (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  {codeError}
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="accessCode" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Access Code
-                </Label>
-                <Input
-                  id="accessCode"
-                  type="text"
-                  placeholder="Type here..."
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="h-12"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={codeChecking}
-                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
-              >
-                {codeChecking ? "Checking…" : "Continue"}
-              </button>
-            </form>
           ) : (
             /* ── Registration form ── */
             <form onSubmit={handleRegister} className="space-y-4" noValidate>

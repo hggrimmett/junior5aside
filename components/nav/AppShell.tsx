@@ -37,8 +37,11 @@ const NAV = [
   },
 ];
 
-// No chrome on these pages
-const BARE_PAGES = ["/", "/login", "/register", "/register-mentor", "/forgot-password", "/reset-password"];
+// No chrome at all — landing page only
+const CHROMELESS_PAGES = ["/"];
+
+// Slim Back/Home bar only, no bottom nav (unauthenticated flows)
+const LIGHT_NAV_PAGES = ["/login", "/register", "/register-mentor", "/forgot-password", "/reset-password"];
 
 // ── Component ──────────────────────────────────────────────
 
@@ -46,17 +49,48 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
-  const isBare = BARE_PAGES.includes(pathname);
+  const isChromeless = CHROMELESS_PAGES.includes(pathname);
+  const isLightNav = LIGHT_NAV_PAGES.includes(pathname);
 
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/";
   }
 
-  if (isBare) {
+  if (isChromeless) {
     return (
       <div className="mx-auto max-w-md min-h-screen bg-background">
         {children}
+      </div>
+    );
+  }
+
+  if (isLightNav) {
+    return (
+      <div className="mx-auto flex max-w-md min-h-screen flex-col bg-background">
+        <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-background/95 px-2 backdrop-blur">
+          <button
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="flex h-9 items-center gap-1 rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors active:bg-muted"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+          <Link
+            href="/"
+            aria-label="Home"
+            className="flex h-9 items-center gap-1 rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors active:bg-muted"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+            </svg>
+            Home
+          </Link>
+        </header>
+        <main className="flex-1">{children}</main>
       </div>
     );
   }

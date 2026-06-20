@@ -298,13 +298,13 @@ export default function HomePage() {
           subtitle="Scores, standings & fixtures"
         />
 
-        {/* My Account */}
+        {/* My Profile */}
         <NavCard
           href="/dashboard"
           borderColour="border-l-blue-500"
           iconColour="text-blue-500"
           icon={<path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />}
-          title="My Account"
+          title="My Profile"
           subtitle="Players, profile & contact details"
         />
 
