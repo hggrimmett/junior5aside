@@ -1,35 +1,6 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 
 export default function HomePage() {
-  const [splashDone, setSplashDone] = useState(false);
-
-  if (!splashDone) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <video
-          autoPlay
-          muted
-          playsInline
-          onEnded={() => setSplashDone(true)}
-          className="max-h-screen max-w-full"
-        >
-          <source src="/intro.mp4" type="video/mp4" />
-        </video>
-
-        {/* Skip button */}
-        <button
-          onClick={() => setSplashDone(true)}
-          className="fixed bottom-8 right-6 rounded-full bg-black/10 px-4 py-2 text-sm font-semibold text-foreground backdrop-blur-sm transition-opacity active:opacity-70"
-        >
-          Skip
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#f5f5f5] px-6 py-16">
       <div className="w-full max-w-md space-y-8">
