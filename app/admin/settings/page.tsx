@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   Card,
@@ -163,8 +164,8 @@ export default function AdminSettingsPage() {
 
         {/* ── Stat cards — 3-col grid ─────────────────── */}
         <div className="grid grid-cols-3 gap-3">
-          <StatCard label="Players" value={counts.players} loading={loading} />
-          <StatCard label="Parents" value={counts.parents} loading={loading} />
+          <StatCard label="Players" value={counts.players} loading={loading} href="/admin/players" />
+          <StatCard label="Parents" value={counts.parents} loading={loading} href="/admin/parents" />
           <StatCard label="Matches" value={counts.matches} loading={loading} />
         </div>
 
@@ -250,13 +251,15 @@ function StatCard({
   label,
   value,
   loading,
+  href,
 }: {
   label: string;
   value: number;
   loading: boolean;
+  href?: string;
 }) {
-  return (
-    <Card className="rounded-2xl shadow-md">
+  const inner = (
+    <Card className="rounded-2xl shadow-md transition-shadow hover:shadow-lg">
       <CardContent className="pt-5 pb-4 text-center px-2">
         {loading ? (
           <div className="mx-auto h-9 w-10 animate-pulse rounded bg-muted" />
@@ -269,6 +272,7 @@ function StatCard({
       </CardContent>
     </Card>
   );
+  return href ? <Link href={href}>{inner}</Link> : inner;
 }
 
 function Spinner() {
