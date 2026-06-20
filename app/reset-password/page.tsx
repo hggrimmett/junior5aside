@@ -1,18 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+type Status = "verifying" | "ready" | "invalid";
+
 export default function ResetPasswordPage() {
   const supabase = getSupabaseBrowserClient();
 
+  const [status, setStatus] = useState<Status>("verifying");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    async function verifyLink() {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      const errParam = url.searchParams.get("error_description") ?? url.searchParams.get("error");
+
+      if (errParam) {
+        setError(decodeURIComponent(errParam));
+        setStatus("invalid");
+        return;
+      }
+
+      if (code) {
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeErr) {
+          setError("This reset link is invalid or has expired. Please request a new one.");
+          setStatus("invalid");
+          return;
+        }
+        // Clean the code out of the URL so reloads don't try to re-exchange.
+        window.history.replaceState({}, "", "/reset-password");
+        setStatus("ready");
+        return;
+      }
+
+      // Fallback: no code in URL — maybe the SDK auto-set a session via hash, check.
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        setStatus("ready");
+      } else {
+        setError("Open this page from the password-reset link in your email.");
+        setStatus("invalid");
+      }
+    }
+    verifyLink();
+  }, [supabase]);
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +97,27 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="rounded-2xl bg-background shadow-md px-6 py-7 space-y-5">
-          {done ? (
+          {status === "verifying" && (
+            <p className="text-center text-sm text-muted-foreground">
+              Verifying reset link…
+            </p>
+          )}
+
+          {status === "invalid" && (
+            <div className="space-y-4 text-center">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {error ?? "This reset link is invalid or has expired."}
+              </div>
+              <button
+                onClick={() => (window.location.href = "/forgot-password")}
+                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity active:opacity-80"
+              >
+                Request a new link
+              </button>
+            </div>
+          )}
+
+          {status === "ready" && done && (
             <div className="space-y-4 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cricket/10 text-cricket">
                 <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -75,7 +135,9 @@ export default function ResetPasswordPage() {
                 Sign In
               </button>
             </div>
-          ) : (
+          )}
+
+          {status === "ready" && !done && (
             <>
               {error && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
