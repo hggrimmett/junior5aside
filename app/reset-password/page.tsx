@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 
 type Status = "verifying" | "ready" | "invalid";
@@ -169,9 +170,8 @@ export default function ResetPasswordPage() {
               <form onSubmit={handleUpdate} className="space-y-4" noValidate>
                 <div className="space-y-1.5">
                   <Label htmlFor="password">New Password</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
-                    type="password"
                     placeholder="Min. 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -181,9 +181,8 @@ export default function ResetPasswordPage() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="confirm">Confirm Password</Label>
-                  <Input
+                  <PasswordInput
                     id="confirm"
-                    type="password"
                     placeholder="Repeat password"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
