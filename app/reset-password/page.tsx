@@ -21,6 +21,8 @@ export default function ResetPasswordPage() {
     async function verifyLink() {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
+      const tokenHash = url.searchParams.get("token_hash");
+      const type = url.searchParams.get("type");
       const errParam = url.searchParams.get("error_description") ?? url.searchParams.get("error");
 
       if (errParam) {
@@ -29,20 +31,39 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      if (code) {
-        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeErr) {
+      // Stateless token-hash flow — works across browsers/devices.
+      if (tokenHash && type === "recovery") {
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (verifyErr) {
           setError("This reset link is invalid or has expired. Please request a new one.");
           setStatus("invalid");
           return;
         }
-        // Clean the code out of the URL so reloads don't try to re-exchange.
         window.history.replaceState({}, "", "/reset-password");
         setStatus("ready");
         return;
       }
 
-      // Fallback: no code in URL — maybe the SDK auto-set a session via hash, check.
+      // PKCE flow — only works if the link is opened in the same browser
+      // context that requested the reset (same code_verifier in storage).
+      if (code) {
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeErr) {
+          setError(
+            "This reset link is invalid, expired, or was opened in a different browser than the one that requested it. Please request a new one."
+          );
+          setStatus("invalid");
+          return;
+        }
+        window.history.replaceState({}, "", "/reset-password");
+        setStatus("ready");
+        return;
+      }
+
+      // Fallback: no code/token — maybe the SDK auto-set a session via hash.
       const { data } = await supabase.auth.getSession();
       if (data.session) {
         setStatus("ready");
