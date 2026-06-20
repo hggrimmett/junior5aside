@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 INSERT INTO settings (key, value) VALUES
-  ('registration_deadline', '2026-06-01T23:59:00Z')
+  ('registration_deadline', '2026-07-10T22:59:00Z')
 ON CONFLICT (key) DO NOTHING;
 
 -- RLS for settings: anyone can read, only admins can write

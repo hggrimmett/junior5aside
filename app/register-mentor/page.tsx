@@ -5,8 +5,23 @@ import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { verifyMentorAccessCode } from "./actions";
 
-const ACCESS_CODE = "CRICKET2026";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function CheckIcon() {
+  return (
+    <svg
+      className="h-7 w-7"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2.5}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
 
 export default function RegisterMentorPage() {
   const supabase = getSupabaseBrowserClient();
@@ -15,6 +30,7 @@ export default function RegisterMentorPage() {
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [codeAccepted, setCodeAccepted] = useState(false);
+  const [codeChecking, setCodeChecking] = useState(false);
 
   // Registration form
   const [fullName, setFullName] = useState("");
@@ -23,14 +39,21 @@ export default function RegisterMentorPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
 
-  function handleCodeSubmit(e: React.FormEvent) {
+  async function handleCodeSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (code.trim() === ACCESS_CODE) {
-      setCodeError(null);
-      setCodeAccepted(true);
-    } else {
-      setCodeError("Invalid access code. Please check with your organiser.");
+    setCodeError(null);
+    setCodeChecking(true);
+    try {
+      const { ok } = await verifyMentorAccessCode(code);
+      if (ok) {
+        setCodeAccepted(true);
+      } else {
+        setCodeError("Invalid access code. Please check with your organiser.");
+      }
+    } finally {
+      setCodeChecking(false);
     }
   }
 
@@ -40,6 +63,16 @@ export default function RegisterMentorPage() {
 
     if (!fullName.trim() || !mobile.trim() || !email.trim() || !password.trim()) {
       setError("All fields are required.");
+      return;
+    }
+
+    if (!EMAIL_RE.test(email.trim())) {
+      setError("Enter a valid email address.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
@@ -77,7 +110,7 @@ export default function RegisterMentorPage() {
       return;
     }
 
-    window.location.href = "/home";
+    setDone(true);
   }
 
   return (
@@ -92,11 +125,47 @@ export default function RegisterMentorPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Mentor Registration
           </p>
+          {!done && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Registering your children?{" "}
+              <Link href="/register" className="font-semibold text-primary hover:underline">
+                Parent signup
+              </Link>
+            </p>
+          )}
         </div>
 
         {/* Card */}
         <div className="rounded-2xl bg-background shadow-md px-6 py-7 space-y-5">
-          {!codeAccepted ? (
+          {done ? (
+            /* ── Success ── */
+            <div className="flex flex-col items-center py-4 text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-cricket/10 text-cricket">
+                <CheckIcon />
+              </div>
+              <h2 className="mb-2 text-xl font-extrabold tracking-tight text-foreground">
+                You&apos;re all set!
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Your mentor account has been created.
+              </p>
+
+              <div className="mt-6 flex flex-col gap-3 w-full">
+                <Link
+                  href="/home"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90"
+                >
+                  Go to Home
+                </Link>
+                <Link
+                  href="/profile"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-2xl border-2 border-cricket bg-background px-6 text-base font-bold text-cricket shadow-md transition-opacity hover:opacity-90"
+                >
+                  My Profile
+                </Link>
+              </div>
+            </div>
+          ) : !codeAccepted ? (
             /* ── Access code gate ── */
             <form onSubmit={handleCodeSubmit} className="space-y-4" noValidate>
               <h2 className="text-xl font-extrabold tracking-tight text-foreground">
@@ -119,19 +188,22 @@ export default function RegisterMentorPage() {
                 <Input
                   id="accessCode"
                   type="text"
-                  placeholder="e.g. CRICKET2026"
+                  placeholder="Type here..."
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   className="h-12"
                   autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
                 />
               </div>
 
               <button
                 type="submit"
-                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90 active:opacity-80"
+                disabled={codeChecking}
+                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
               >
-                Continue
+                {codeChecking ? "Checking…" : "Continue"}
               </button>
             </form>
           ) : (
@@ -157,6 +229,7 @@ export default function RegisterMentorPage() {
                   placeholder="Jane Smith"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
                   className="h-12"
                 />
               </div>
@@ -171,6 +244,8 @@ export default function RegisterMentorPage() {
                   placeholder="04XX XXX XXX"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
+                  autoComplete="tel"
+                  inputMode="tel"
                   className="h-12"
                 />
               </div>
@@ -185,6 +260,10 @@ export default function RegisterMentorPage() {
                   placeholder="jane@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   className="h-12"
                 />
               </div>
@@ -199,6 +278,7 @@ export default function RegisterMentorPage() {
                   placeholder="Min. 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
                   className="h-12"
                 />
               </div>
@@ -213,15 +293,6 @@ export default function RegisterMentorPage() {
             </form>
           )}
 
-          {/* Footer links */}
-          <div className="space-y-2 text-center text-sm text-muted-foreground">
-            <p>
-              Registering your children?{" "}
-              <Link href="/register" className="font-semibold text-primary hover:underline">
-                Parent signup
-              </Link>
-            </p>
-          </div>
         </div>
       </div>
     </div>

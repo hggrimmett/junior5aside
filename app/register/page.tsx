@@ -20,8 +20,9 @@ import { uploadPlayerPhoto } from "@/lib/upload-photo";
 
 // ── Types ──────────────────────────────────────────────────
 
-type Role = "parent" | "mentor";
 type SchoolYear = "Y3" | "Y4" | "Y5" | "Y6" | "Y7" | "Y8";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface AuthFields {
   fullName: string;
@@ -144,7 +145,6 @@ export default function RegisterPage() {
       });
   }, [supabase]);
 
-  const [role, setRole] = useState<Role>("parent");
   const [step, setStep] = useState<1 | 2>(1);
   const [parentUid, setParentUid] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -159,7 +159,6 @@ export default function RegisterPage() {
     register: regAuth,
     handleSubmit: handleAuth,
     formState: { errors: authErrors, isSubmitting: authSubmitting },
-    reset: resetAuth,
   } = useForm<AuthFields>({ mode: "onSubmit" });
 
   // Step 2 form (parent children)
@@ -168,7 +167,6 @@ export default function RegisterPage() {
     handleSubmit: handleChildren,
     control,
     formState: { errors: childErrors, isSubmitting: childSubmitting },
-    reset: resetChildren,
   } = useForm<ParentStep2>({
     defaultValues: { children: [{ firstName: "", lastName: "", schoolYear: "Y3" }] },
   });
@@ -177,20 +175,6 @@ export default function RegisterPage() {
     control,
     name: "children",
   });
-
-  // ── Role switch ──────────────────────────────────────────
-
-  function switchRole(r: Role) {
-    setRole(r);
-    setStep(1);
-    setParentUid(null);
-    setDone(false);
-    setServerError(null);
-    setShowPhotos(false);
-    setPlayerIds([]);
-    resetAuth();
-    resetChildren({ children: [{ firstName: "", lastName: "", schoolYear: "Y3" }] });
-  }
 
   // ── Step 1: Auth + Profile ───────────────────────────────
 
@@ -228,7 +212,7 @@ export default function RegisterPage() {
 
     const { error: profileErr } = await supabase.from("profiles").insert({
       id: uid,
-      role,
+      role: "parent",
       full_name: data.fullName.trim(),
       mobile_number: data.mobile.trim(),
       email: data.email,
@@ -239,12 +223,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (role === "mentor") {
-      setDone(true);
-    } else {
-      setParentUid(uid);
-      setStep(2);
-    }
+    setParentUid(uid);
+    setStep(2);
   }
 
   // ── Step 2: Add Children ─────────────────────────────────
@@ -288,9 +268,7 @@ export default function RegisterPage() {
             You&apos;re all set!
           </h2>
           <p className="text-sm text-muted-foreground">
-            {role === "parent"
-              ? "Your account and players have been registered."
-              : "Your mentor account has been created."}
+            Your account and players have been registered.
           </p>
 
           <div className="mt-6 flex flex-col gap-3 w-full">
@@ -360,31 +338,37 @@ export default function RegisterPage() {
       )}
 
       {/* Title */}
-      <h2 className="mb-5 text-xl font-extrabold tracking-tight text-foreground">
+      <h2 className="mb-2 text-xl font-extrabold tracking-tight text-foreground">
         Parent Registration
       </h2>
 
-      {/* Step indicator (parent only) */}
-      {role === "parent" && (
-        <div className="mb-6 flex items-center gap-2">
-          <StepDot active={step === 1} done={step === 2} label="1" />
-          <div
-            className={`h-0.5 flex-1 rounded transition-colors ${
-              step === 2 ? "bg-cricket" : "bg-border"
-            }`}
-          />
-          <StepDot active={step === 2 && !showPhotos} done={step === 2 && showPhotos} label="2" />
-          <div
-            className={`h-0.5 flex-1 rounded transition-colors ${
-              showPhotos ? "bg-cricket" : "bg-border"
-            }`}
-          />
-          <StepDot active={showPhotos} done={false} label="3" />
-          <span className="ml-2 text-xs text-muted-foreground">
-            {step === 1 ? "Your details" : showPhotos ? "Photos" : "Add children"}
-          </span>
-        </div>
-      )}
+      {/* Mentor signup prompt */}
+      <p className="mb-5 text-sm text-muted-foreground">
+        Registering as a mentor?{" "}
+        <Link href="/register-mentor" className="font-semibold text-primary hover:underline">
+          Mentor signup
+        </Link>
+      </p>
+
+      {/* Step indicator */}
+      <div className="mb-6 flex items-center gap-2">
+        <StepDot active={step === 1} done={step === 2} label="1" />
+        <div
+          className={`h-0.5 flex-1 rounded transition-colors ${
+            step === 2 ? "bg-cricket" : "bg-border"
+          }`}
+        />
+        <StepDot active={step === 2 && !showPhotos} done={step === 2 && showPhotos} label="2" />
+        <div
+          className={`h-0.5 flex-1 rounded transition-colors ${
+            showPhotos ? "bg-cricket" : "bg-border"
+          }`}
+        />
+        <StepDot active={showPhotos} done={false} label="3" />
+        <span className="ml-2 text-xs text-muted-foreground">
+          {step === 1 ? "Your details" : showPhotos ? "Photos" : "Add children"}
+        </span>
+      </div>
 
       {/* Server error */}
       {serverError && (
@@ -408,6 +392,7 @@ export default function RegisterPage() {
               id="fullName"
               type="text"
               placeholder="Jane Smith"
+              autoComplete="name"
               className="h-12"
               {...regAuth("fullName", { required: "Full name is required." })}
             />
@@ -426,6 +411,8 @@ export default function RegisterPage() {
               id="mobile"
               type="tel"
               placeholder="04XX XXX XXX"
+              autoComplete="tel"
+              inputMode="tel"
               className="h-12"
               {...regAuth("mobile", { required: "Mobile number is required." })}
             />
@@ -444,8 +431,15 @@ export default function RegisterPage() {
               id="email"
               type="email"
               placeholder="jane@example.com"
+              autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
               className="h-12"
-              {...regAuth("email", { required: "Email is required." })}
+              {...regAuth("email", {
+                required: "Email is required.",
+                pattern: { value: EMAIL_RE, message: "Enter a valid email address." },
+              })}
             />
             {authErrors.email && (
               <p className="text-xs text-destructive">
@@ -462,6 +456,7 @@ export default function RegisterPage() {
               id="password"
               type="password"
               placeholder="Min. 6 characters"
+              autoComplete="new-password"
               className="h-12"
               {...regAuth("password", {
                 required: "Password is required.",
@@ -487,17 +482,15 @@ export default function RegisterPage() {
               <span className="flex items-center gap-2">
                 <Spinner /> Please Wait
               </span>
-            ) : role === "parent" ? (
-              "Continue"
             ) : (
-              "Complete Registration"
+              "Continue"
             )}
           </button>
         </form>
       )}
 
-      {/* ── Step 3: Photo Upload (parent only) ─────────── */}
-      {step === 2 && role === "parent" && showPhotos && (
+      {/* ── Step 3: Photo Upload ──────────────────────── */}
+      {step === 2 && showPhotos && (
         <div className="space-y-5">
           <div>
             <h3 className="text-base font-extrabold tracking-tight text-foreground">
@@ -527,27 +520,21 @@ export default function RegisterPage() {
             ))}
           </div>
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border-2 border-cricket bg-background text-base font-bold text-cricket shadow-md transition-opacity hover:opacity-90"
-              onClick={() => setDone(true)}
-            >
-              Skip
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-cricket text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90"
-              onClick={() => setDone(true)}
-            >
-              Done
-            </button>
-          </div>
+          <button
+            type="button"
+            className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-base font-bold text-cricket-foreground shadow-md transition-opacity hover:opacity-90"
+            onClick={() => setDone(true)}
+          >
+            Finish
+          </button>
+          <p className="text-center text-xs text-muted-foreground">
+            Photos are optional — you can add them later from your profile.
+          </p>
         </div>
       )}
 
-      {/* ── Step 2: Add Children (parent only) ─────────── */}
-      {step === 2 && role === "parent" && !showPhotos && (
+      {/* ── Step 2: Add Children ──────────────────────── */}
+      {step === 2 && !showPhotos && (
         <form
           onSubmit={handleChildren(onChildrenSubmit)}
           className="space-y-4"
@@ -671,12 +658,6 @@ export default function RegisterPage() {
           Already have an account?{" "}
           <Link href="/login" className="font-semibold text-primary hover:underline">
             Sign In
-          </Link>
-        </p>
-        <p>
-          Registering as a mentor?{" "}
-          <Link href="/register-mentor" className="font-semibold text-primary hover:underline">
-            Mentor signup
           </Link>
         </p>
       </div>

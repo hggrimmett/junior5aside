@@ -8,7 +8,7 @@ export default function HomePage() {
 
   if (!splashDone) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
+      <div className="flex min-h-screen items-center justify-center bg-white">
         <video
           autoPlay
           muted
@@ -22,7 +22,7 @@ export default function HomePage() {
         {/* Skip button */}
         <button
           onClick={() => setSplashDone(true)}
-          className="fixed bottom-8 right-6 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-opacity active:opacity-70"
+          className="fixed bottom-8 right-6 rounded-full bg-black/10 px-4 py-2 text-sm font-semibold text-foreground backdrop-blur-sm transition-opacity active:opacity-70"
         >
           Skip
         </button>
