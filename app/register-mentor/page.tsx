@@ -173,12 +173,12 @@ export default function RegisterMentorPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="mobile" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Mobile Number
+                  Guardian&apos;s mobile number
                 </Label>
                 <Input
                   id="mobile"
                   type="tel"
-                  placeholder="04XX XXX XXX"
+                  placeholder="07XXX XXX XXX"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
                   autoComplete="tel"
@@ -189,12 +189,12 @@ export default function RegisterMentorPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Email
+                  Guardian&apos;s email address
                 </Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="jane@example.com"
+                  placeholder="parent@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
@@ -203,6 +203,10 @@ export default function RegisterMentorPage() {
                   spellCheck={false}
                   className="h-12"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  We&apos;ll use this to sign you in and for tournament-day
+                  updates.
+                </p>
               </div>
 
               <div className="space-y-1.5">
