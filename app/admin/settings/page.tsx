@@ -35,6 +35,12 @@ export default function AdminSettingsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [deadline, setDeadline] = useState<Date | null>(null);
+  const [deadlineSaving, setDeadlineSaving] = useState(false);
+  const [closeConfirm, setCloseConfirm] = useState(false);
+
+  const [downloading, setDownloading] = useState(false);
+
   // ── Auth guard ──────────────────────────────────────────
 
   useEffect(() => {
@@ -62,13 +68,18 @@ export default function AdminSettingsPage() {
   // ── Fetch counts ─────────────────────────────────────────
 
   const fetchCounts = useCallback(async () => {
-    const [playersRes, parentsRes, matchesRes] = await Promise.all([
+    const [playersRes, parentsRes, matchesRes, deadlineRes] = await Promise.all([
       supabase.from("players").select("id", { count: "exact", head: true }),
       supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .eq("role", "parent"),
       supabase.from("matches").select("id", { count: "exact", head: true }),
+      supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "registration_deadline")
+        .single<{ value: string }>(),
     ]);
 
     setCounts({
@@ -76,6 +87,9 @@ export default function AdminSettingsPage() {
       parents: parentsRes.count ?? 0,
       matches: matchesRes.count ?? 0,
     });
+    if (deadlineRes.data?.value) {
+      setDeadline(new Date(deadlineRes.data.value));
+    }
     setLoading(false);
   }, [supabase]);
 
@@ -132,6 +146,117 @@ export default function AdminSettingsPage() {
   }
 
 
+  // ── Registration deadline ────────────────────────────────
+
+  async function updateDeadline(newValue: string, successMsg: string) {
+    setDeadlineSaving(true);
+    setError(null);
+    const { error: updateErr } = await supabase
+      .from("settings")
+      .update({ value: newValue })
+      .eq("key", "registration_deadline");
+    setDeadlineSaving(false);
+    if (updateErr) {
+      setError(`Deadline update failed: ${updateErr.message}`);
+      return;
+    }
+    setDeadline(new Date(newValue));
+    setCloseConfirm(false);
+    showToast(successMsg);
+  }
+
+  async function handleCloseEntries() {
+    await updateDeadline(new Date().toISOString(), "Registration closed.");
+  }
+
+  async function handleReopenEntries() {
+    await updateDeadline("2026-07-10T22:59:00Z", "Registration reopened until 10 Jul.");
+  }
+
+  // ── CSV backup ───────────────────────────────────────────
+
+  function downloadCsv(filename: string, rows: string[][]) {
+    const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleDownloadBackup() {
+    setDownloading(true);
+    setError(null);
+
+    const [profilesRes, playersRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, role, full_name, email, mobile_number, created_at")
+        .in("role", ["parent", "mentor"])
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("players")
+        .select("id, parent_id, first_name, last_name, name, age_group, avatar_url, created_at, teams(name)")
+        .order("created_at", { ascending: true }),
+    ]);
+
+    if (profilesRes.error) {
+      setError(`Profiles fetch failed: ${profilesRes.error.message}`);
+      setDownloading(false);
+      return;
+    }
+    if (playersRes.error) {
+      setError(`Players fetch failed: ${playersRes.error.message}`);
+      setDownloading(false);
+      return;
+    }
+
+    const profiles = profilesRes.data ?? [];
+    const players = playersRes.data ?? [];
+    const parentsById = new Map(profiles.filter((p) => p.role === "parent").map((p) => [p.id, p]));
+
+    const rows: string[][] = [[
+      "Role", "First name", "Last name", "Email", "Mobile",
+      "School year", "Team", "Parent name", "Parent email", "Photo URL", "Registered",
+    ]];
+
+    // Parents & mentors
+    for (const p of profiles) {
+      const [first, ...rest] = (p.full_name ?? "").trim().split(/\s+/);
+      const last = rest.join(" ");
+      rows.push([
+        p.role ?? "", first ?? "", last ?? "", p.email ?? "", p.mobile_number ?? "",
+        "", "", "", "", "", p.created_at ?? "",
+      ]);
+    }
+
+    // Kids
+    for (const kid of players) {
+      const team = Array.isArray(kid.teams) ? kid.teams[0] : kid.teams;
+      const parent = parentsById.get(kid.parent_id);
+      const fallback = (kid.name ?? "").trim().split(/\s+/);
+      const first = kid.first_name ?? fallback[0] ?? "";
+      const last = kid.last_name ?? fallback.slice(1).join(" ");
+      rows.push([
+        "kid", first, last, "", "",
+        kid.age_group ?? "", team?.name ?? "",
+        parent?.full_name ?? (parent ? "" : "[orphan]"),
+        parent?.email ?? "",
+        kid.avatar_url ?? "",
+        kid.created_at ?? "",
+      ]);
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`junior5aside-backup-${stamp}.csv`, rows);
+    setDownloading(false);
+    showToast(`Downloaded ${rows.length - 1} rows.`);
+  }
+
   // ── Toast helper ─────────────────────────────────────────
 
   function showToast(msg: string) {
@@ -168,6 +293,114 @@ export default function AdminSettingsPage() {
           <StatCard label="Parents" value={counts.parents} loading={loading} href="/admin/parents" />
           <StatCard label="Matches" value={counts.matches} loading={loading} />
         </div>
+
+        {/* ── Registration entries card ────────────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">Registration entries</CardTitle>
+            <CardDescription className="text-sm">
+              Controls whether parents can register new players on{" "}
+              <code className="text-xs">/register</code>.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <Separator />
+
+            {/* Status badge */}
+            {deadline ? (
+              <div
+                className={`rounded-xl border px-4 py-3 text-sm ${
+                  new Date() > deadline
+                    ? "border-destructive/30 bg-destructive/5 text-destructive"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                }`}
+              >
+                <p className="font-bold">
+                  {new Date() > deadline ? "Registration is CLOSED" : "Registration is OPEN"}
+                </p>
+                <p className="mt-0.5 text-xs opacity-80">
+                  Deadline:{" "}
+                  {deadline.toLocaleString("en-GB", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            ) : (
+              <div className="h-16 animate-pulse rounded-xl bg-muted" />
+            )}
+
+            {deadline && new Date() > deadline ? (
+              <Button
+                variant="outline"
+                onClick={handleReopenEntries}
+                disabled={deadlineSaving}
+                className="h-12 w-full rounded-xl font-bold gap-2"
+              >
+                {deadlineSaving ? <><Spinner />Saving...</> : "Reopen entries (until 10 Jul)"}
+              </Button>
+            ) : !closeConfirm ? (
+              <Button
+                variant="outline"
+                onClick={() => setCloseConfirm(true)}
+                disabled={!deadline}
+                className="h-12 w-full rounded-xl font-bold"
+              >
+                Close entries now
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Button
+                  variant="destructive"
+                  onClick={handleCloseEntries}
+                  disabled={deadlineSaving}
+                  className="h-12 w-full rounded-xl font-bold gap-2"
+                >
+                  {deadlineSaving ? <><Spinner />Closing...</> : "Confirm — close entries"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setCloseConfirm(false)}
+                  disabled={deadlineSaving}
+                  className="h-12 w-full rounded-xl"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Backup card ──────────────────────────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">Backup</CardTitle>
+            <CardDescription className="text-sm">
+              Download local CSV copies of everything. Recommended before closing entries or resetting.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            <Separator />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              One flat CSV with a <strong>Role</strong> column (parent, mentor, kid).
+              Kids include school year, team, and parent name — so you can sort/filter to allocate them to competitions.
+            </p>
+            <Button
+              variant="outline"
+              onClick={handleDownloadBackup}
+              disabled={downloading}
+              className="h-12 w-full rounded-xl font-bold gap-2"
+            >
+              {downloading ? <><Spinner />Preparing...</> : "Download full backup CSV"}
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* ── GDPR Purge card ──────────────────────────── */}
         <Card className="rounded-2xl shadow-md border-2 border-destructive/40">
