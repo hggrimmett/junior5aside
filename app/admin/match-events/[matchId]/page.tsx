@@ -78,7 +78,7 @@ export default function MatchEventsPage() {
       const { data: profile } = await supabase
         .from("profiles").select("role").eq("id", user.id).single<{ role: string }>();
 
-      if (profile?.role !== "superadmin" && profile?.role !== "coach") {
+      if (profile?.role !== "superadmin") {
         window.location.href = "/home"; return;
       }
       setAuthorized(true);

@@ -293,7 +293,7 @@ function Spinner() {
 
 // ── Main TeamBalancer component ────────────────────────────
 
-export default function TeamBalancer({ tournamentId }: { tournamentId: string }) {
+export default function TeamBalancer({ tournamentId, locked = false }: { tournamentId: string; locked?: boolean }) {
   const supabase = getSupabaseBrowserClient();
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -453,6 +453,7 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
 
   async function handleDragEnd(event: DragEndEvent) {
     setActivePlayer(null);
+    if (locked) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -521,6 +522,7 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
 
   // Long-press: move player to another tournament
   async function handleMoveTournament(player: Player, targetTournamentId: string) {
+    if (locked) return;
     if (targetTournamentId === tournamentId) { setLongPressPlayer(null); return; }
 
     setLongPressPlayer(null);
@@ -544,6 +546,7 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
   // ── Mentor assignment ─────────────────────────────────
 
   async function handleMentorChange(teamId: string, mentorId: string | null) {
+    if (locked) return;
     // Optimistic
     setTeams((prev) =>
       prev.map((t) => (t.id === teamId ? { ...t, mentor_id: mentorId } : t))
@@ -566,6 +569,7 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
   // ── Quick-create team ──────────────────────────────────
 
   async function quickCreateTeam() {
+    if (locked) return;
     setCreating(true);
     setError(null);
 
@@ -611,12 +615,24 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
 
   return (
     <div className="space-y-4">
+      {/* Lock banner */}
+      {locked && (
+        <Card className="rounded-2xl border-amber-300 bg-amber-50">
+          <CardContent className="py-3 text-xs font-semibold text-amber-800">
+            🔒 Team roster locked — the first match has been scored. Contact the tournament admin if you need to change teams.
+          </CardContent>
+        </Card>
+      )}
+
       {/* Error banner */}
       {error && (
         <Card className="rounded-2xl border-destructive/50 bg-destructive/5">
           <CardContent className="py-3 text-sm text-destructive">{error}</CardContent>
         </Card>
       )}
+
+      {/* Wrapper — pointer-events-none when locked visually disables everything below */}
+      <div className={locked ? "pointer-events-none opacity-60" : ""}>
 
       {/* Summary bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/40 px-4 py-3 text-xs font-semibold">
@@ -745,6 +761,7 @@ export default function TeamBalancer({ tournamentId }: { tournamentId: string })
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

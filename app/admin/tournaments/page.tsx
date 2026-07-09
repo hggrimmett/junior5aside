@@ -162,7 +162,9 @@ export default function TournamentsPage() {
   const supabase = getSupabaseBrowserClient();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [lockedTournaments, setLockedTournaments] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -213,6 +215,7 @@ export default function TournamentsPage() {
 
       if (profile?.role === "superadmin" || profile?.role === "coach") {
         setAuthorized(true);
+        setRole(profile.role);
       } else {
         window.location.href = "/dashboard";
       }
@@ -246,6 +249,22 @@ export default function TournamentsPage() {
         }
         return next;
       });
+
+      // Compute per-tournament lock: any match with status=true OR score/wickets recorded
+      const tIds = list.map((t) => t.id);
+      if (tIds.length) {
+        const { data: playedRows } = await supabase
+          .from("matches")
+          .select("tournament_id, status, score_a, score_b, wickets_a, wickets_b")
+          .in("tournament_id", tIds);
+        const locked = new Set<string>();
+        for (const m of playedRows ?? []) {
+          if (m.status || m.score_a > 0 || m.score_b > 0 || m.wickets_a > 0 || m.wickets_b > 0) {
+            locked.add(m.tournament_id);
+          }
+        }
+        setLockedTournaments(locked);
+      }
     }
     setLoading(false);
   }, [supabase]);
@@ -678,18 +697,21 @@ export default function TournamentsPage() {
         {/* Page header */}
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-black tracking-tight">Tournament Setup</h1>
-          <Button
-            onClick={() => {
-              setCreateError(null);
-              setDialogOpen(true);
-            }}
-            className="h-12 rounded-2xl bg-[#114232] px-4 font-bold text-white hover:bg-[#1a5c44]"
-          >
-            + Create
-          </Button>
+          {role === "superadmin" && (
+            <Button
+              onClick={() => {
+                setCreateError(null);
+                setDialogOpen(true);
+              }}
+              className="h-12 rounded-2xl bg-[#114232] px-4 font-bold text-white hover:bg-[#1a5c44]"
+            >
+              + Create
+            </Button>
+          )}
         </div>
 
         {/* ── Step 1: Export / Step 2: Import ────────── */}
+        {role === "superadmin" && (
         <Card className="rounded-2xl shadow-md">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-black">Team Allocation</CardTitle>
@@ -744,6 +766,7 @@ export default function TournamentsPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Global error banner */}
         {error && (
@@ -820,6 +843,7 @@ export default function TournamentsPage() {
                     </CardDescription>
                   </CardHeader>
 
+                  {role === "superadmin" && (<>
                   <CardContent className="space-y-3 px-4 pb-2">
                     {/* Max team size editor */}
                     <div className="flex items-center gap-3">
@@ -865,6 +889,7 @@ export default function TournamentsPage() {
                       )}
                     </Button>
                   </CardFooter>
+                  </>)}
                 </Card>
 
                 {/* Team Balancer — expanded inline */}
@@ -874,36 +899,40 @@ export default function TournamentsPage() {
                       Team Balancer — {tournament.name}
                     </p>
 
-                    {/* Per-tournament start-time override */}
-                    <TournamentStartTime
-                      tournamentId={tournament.id}
-                      initial={tournament.start_time}
-                      onSaved={(iso) =>
-                        setTournaments((prev) =>
-                          prev.map((t) => (t.id === tournament.id ? { ...t, start_time: iso } : t)),
-                        )
-                      }
-                    />
+                    {role === "superadmin" && (
+                      <>
+                        {/* Per-tournament start-time override */}
+                        <TournamentStartTime
+                          tournamentId={tournament.id}
+                          initial={tournament.start_time}
+                          onSaved={(iso) =>
+                            setTournaments((prev) =>
+                              prev.map((t) => (t.id === tournament.id ? { ...t, start_time: iso } : t)),
+                            )
+                          }
+                        />
 
-                    {/* Generate Fixtures */}
-                    <button
-                      onClick={() => handleGenerateFixtures(tournament)}
-                      disabled={generatingId === tournament.id}
-                      className="mb-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-[#114232] bg-transparent text-sm font-bold text-[#114232] transition-colors hover:bg-[#114232]/5 active:bg-[#114232]/10 disabled:opacity-60"
-                    >
-                      {generatingId === tournament.id ? (
-                        <><Spinner /> Generating...</>
-                      ) : (
-                        <>
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          Generate Fixtures
-                        </>
-                      )}
-                    </button>
+                        {/* Generate Fixtures */}
+                        <button
+                          onClick={() => handleGenerateFixtures(tournament)}
+                          disabled={generatingId === tournament.id}
+                          className="mb-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-[#114232] bg-transparent text-sm font-bold text-[#114232] transition-colors hover:bg-[#114232]/5 active:bg-[#114232]/10 disabled:opacity-60"
+                        >
+                          {generatingId === tournament.id ? (
+                            <><Spinner /> Generating...</>
+                          ) : (
+                            <>
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Generate Fixtures
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
 
-                    <TeamBalancer tournamentId={tournament.id} />
+                    <TeamBalancer tournamentId={tournament.id} locked={lockedTournaments.has(tournament.id)} />
                   </div>
                 )}
               </div>
@@ -912,10 +941,12 @@ export default function TournamentsPage() {
       </div>
 
       {/* ── Finals ─────────────────────────────────────────── */}
-      <div className="mt-8">
-        <h2 className="mx-auto max-w-md px-4 pb-3 text-base font-black">Finals</h2>
-        <FinalsManager />
-      </div>
+      {role === "superadmin" && (
+        <div className="mt-8">
+          <h2 className="mx-auto max-w-md px-4 pb-3 text-base font-black">Finals</h2>
+          <FinalsManager />
+        </div>
+      )}
 
       {/* ── Create Tournament Dialog ──────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

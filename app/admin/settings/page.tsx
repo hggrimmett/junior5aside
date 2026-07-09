@@ -75,7 +75,7 @@ export default function AdminSettingsPage() {
         .eq("id", user.id)
         .single<{ role: string }>();
 
-      if (profile?.role === "superadmin" || profile?.role === "coach") {
+      if (profile?.role === "superadmin") {
         setAuthorized(true);
       } else {
         window.location.href = "/dashboard";
