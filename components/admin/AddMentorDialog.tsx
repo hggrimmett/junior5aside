@@ -133,8 +133,8 @@ export default function AddMentorDialog({
   async function handleSubmit() {
     setError(null);
     setSuccessMsg(null);
-    if (!fullName.trim() || !email.trim() || !mobile.trim()) {
-      setError("Name, email, and mobile are required.");
+    if (!fullName.trim() || !email.trim()) {
+      setError("Name and email are required.");
       return;
     }
     if (!password || password.length < 8) {
@@ -218,7 +218,7 @@ export default function AddMentorDialog({
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-10 rounded-lg" />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs font-bold uppercase tracking-wider">Mobile</Label>
+            <Label className="text-xs font-bold uppercase tracking-wider">Mobile (optional)</Label>
             <Input type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} className="h-10 rounded-lg" />
           </div>
           <div className="space-y-1">

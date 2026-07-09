@@ -418,7 +418,7 @@ export default function RegisterPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="mobile" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Mobile Number
+              Mobile Number (optional)
             </Label>
             <Input
               id="mobile"
@@ -427,7 +427,7 @@ export default function RegisterPage() {
               autoComplete="tel"
               inputMode="tel"
               className="h-12"
-              {...regAuth("mobile", { required: "Mobile number is required." })}
+              {...regAuth("mobile")}
             />
             {authErrors.mobile && (
               <p className="text-xs text-destructive">

@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
   }
 
   const { email, password, fullName, mobile } = body;
-  if (!email || !password || !fullName || !mobile) {
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  if (!email || !password || !fullName) {
+    return NextResponse.json({ error: "Email, password, and name are required" }, { status: 400 });
   }
   if (password.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     role: "mentor",
     full_name: fullName.trim(),
     email,
-    mobile_number: mobile.trim(),
+    mobile_number: mobile?.trim() || null,
   });
   if (profileErr) {
     await admin.auth.admin.deleteUser(uid);

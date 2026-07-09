@@ -39,8 +39,8 @@ export default function RegisterMentorPage() {
     e.preventDefault();
     setError(null);
 
-    if (!fullName.trim() || !mobile.trim() || !email.trim() || !password.trim()) {
-      setError("All fields are required.");
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
+      setError("Name, email, and password are required.");
       return;
     }
 
@@ -173,7 +173,7 @@ export default function RegisterMentorPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="mobile" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Guardian&apos;s mobile number
+                  Guardian&apos;s mobile number (optional)
                 </Label>
                 <Input
                   id="mobile"

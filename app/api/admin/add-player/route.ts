@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (parent && (!parent.email || !parent.password || !parent.fullName || !parent.mobile)) {
-    return NextResponse.json({ error: "Missing parent fields" }, { status: 400 });
+  if (parent && (!parent.email || !parent.password || !parent.fullName)) {
+    return NextResponse.json({ error: "Parent needs email, password, and name" }, { status: 400 });
   }
 
   const admin = getSupabaseAdminClient();
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       role: "parent",
       full_name: parent.fullName.trim(),
       email: parent.email,
-      mobile_number: parent.mobile.trim(),
+      mobile_number: parent.mobile?.trim() || null,
     });
     if (profileErr) {
       // Rollback auth user

@@ -258,8 +258,8 @@ export default function AddPlayerDialog({
       return;
     }
     if (mode === "new") {
-      if (!newParentName.trim() || !newParentEmail.trim() || !newParentMobile.trim()) {
-        setError("New parent needs name, email, and mobile.");
+      if (!newParentName.trim() || !newParentEmail.trim()) {
+        setError("New parent needs at least a name and email.");
         return;
       }
       if (!newParentPassword || newParentPassword.length < 8) {
@@ -435,7 +435,7 @@ export default function AddPlayerDialog({
                 <Input type="email" value={newParentEmail} onChange={(e) => setNewParentEmail(e.target.value)} className="h-10 rounded-lg" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-bold uppercase tracking-wider">Parent mobile</Label>
+                <Label className="text-xs font-bold uppercase tracking-wider">Parent mobile (optional)</Label>
                 <Input type="tel" value={newParentMobile} onChange={(e) => setNewParentMobile(e.target.value)} className="h-10 rounded-lg" />
               </div>
               <div className="space-y-1">
