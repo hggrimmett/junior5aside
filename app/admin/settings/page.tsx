@@ -33,6 +33,7 @@ function localInputToUtcIso(local: string): string {
 interface Counts {
   players: number;
   parents: number;
+  mentors: number;
   matches: number;
 }
 
@@ -42,7 +43,7 @@ export default function AdminSettingsPage() {
   const supabase = getSupabaseBrowserClient();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [counts, setCounts] = useState<Counts>({ players: 0, parents: 0, matches: 0 });
+  const [counts, setCounts] = useState<Counts>({ players: 0, parents: 0, mentors: 0, matches: 0 });
   const [loading, setLoading] = useState(true);
   const [purging, setPurging] = useState(false);
   const [purgeConfirm, setPurgeConfirm] = useState(false);
@@ -86,12 +87,16 @@ export default function AdminSettingsPage() {
   // ── Fetch counts ─────────────────────────────────────────
 
   const fetchCounts = useCallback(async () => {
-    const [playersRes, parentsRes, matchesRes, scheduleRes] = await Promise.all([
+    const [playersRes, parentsRes, mentorsRes, matchesRes, scheduleRes] = await Promise.all([
       supabase.from("players").select("id", { count: "exact", head: true }),
       supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .eq("role", "parent"),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "mentor"),
       supabase.from("matches").select("id", { count: "exact", head: true }),
       supabase
         .from("settings")
@@ -102,6 +107,7 @@ export default function AdminSettingsPage() {
     setCounts({
       players: playersRes.count ?? 0,
       parents: parentsRes.count ?? 0,
+      mentors: mentorsRes.count ?? 0,
       matches: matchesRes.count ?? 0,
     });
     const settingsMap = new Map((scheduleRes.data ?? []).map((s) => [s.key, s.value]));
@@ -329,10 +335,11 @@ export default function AdminSettingsPage() {
           </Card>
         )}
 
-        {/* ── Stat cards — 3-col grid ─────────────────── */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* ── Stat cards — 2×2 grid ──────────────────── */}
+        <div className="grid grid-cols-2 gap-3">
           <StatCard label="Players" value={counts.players} loading={loading} href="/admin/players" />
           <StatCard label="Parents" value={counts.parents} loading={loading} href="/admin/parents" />
+          <StatCard label="Mentors" value={counts.mentors} loading={loading} href="/admin/mentors" />
           <StatCard label="Matches" value={counts.matches} loading={loading} />
         </div>
 

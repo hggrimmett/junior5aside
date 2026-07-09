@@ -36,6 +36,24 @@ export default function AdminPlayersPage() {
   const [query, setQuery] = useState("");
   const [filterGroup, setFilterGroup] = useState<"All" | "Blue" | "Green" | "Red">("All");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single<{ role: string }>();
+      if (profile?.role === "superadmin") setAuthorized(true);
+      else window.location.href = "/dashboard";
+    })();
+  }, [supabase]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +114,14 @@ export default function AdminPlayersPage() {
     Green: rows.filter((r) => r.age_group === "Green").length,
     Red: rows.filter((r) => r.age_group === "Red").length,
   };
+
+  if (!authorized) {
+    return (
+      <div className="flex h-60 items-center justify-center text-sm text-muted-foreground">
+        Checking access...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
