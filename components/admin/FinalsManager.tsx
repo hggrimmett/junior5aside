@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
@@ -82,6 +83,11 @@ export default function FinalsManager() {
   const [error, setError] = useState<string | null>(null);
   const [busyGroup, setBusyGroup] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [plateStart, setPlateStart] = useState<Record<TournamentColour, string>>({
+    Green: "",
+    Red: "",
+    Blue: "",
+  });
 
   // ── Fetch data ───────────────────────────────────────────
 
@@ -164,6 +170,16 @@ export default function FinalsManager() {
     setError(null);
 
     const tournamentId = g.tournament.id;
+    // Admin picks the plate start time; Final runs 25 min after (main event closes the day).
+    const localInput = plateStart[group];
+    let plateIso: string | null = null;
+    let finalIso: string | null = null;
+    if (localInput) {
+      const plateMs = new Date(localInput).getTime();
+      plateIso = new Date(plateMs).toISOString();
+      finalIso = new Date(plateMs + 25 * 60_000).toISOString();
+    }
+
     const rows: {
       tournament_id: string;
       team_a_id: string;
@@ -174,22 +190,10 @@ export default function FinalsManager() {
       wickets_a: number;
       wickets_b: number;
       status: boolean;
+      scheduled_time: string | null;
     }[] = [];
 
-    // Final: 1st vs 2nd
-    rows.push({
-      tournament_id: tournamentId,
-      team_a_id: g.standings[0].teamId,
-      team_b_id: g.standings[1].teamId,
-      match_type: "final",
-      score_a: 0,
-      score_b: 0,
-      wickets_a: 0,
-      wickets_b: 0,
-      status: false,
-    });
-
-    // Plate Final: 3rd vs 4th (if enough teams)
+    // Plate Final: 3rd vs 4th (runs first, if enough teams)
     if (g.standings.length >= 4) {
       rows.push({
         tournament_id: tournamentId,
@@ -201,8 +205,23 @@ export default function FinalsManager() {
         wickets_a: 0,
         wickets_b: 0,
         status: false,
+        scheduled_time: plateIso,
       });
     }
+
+    // Final: 1st vs 2nd (runs after plate)
+    rows.push({
+      tournament_id: tournamentId,
+      team_a_id: g.standings[0].teamId,
+      team_b_id: g.standings[1].teamId,
+      match_type: "final",
+      score_a: 0,
+      score_b: 0,
+      wickets_a: 0,
+      wickets_b: 0,
+      status: false,
+      scheduled_time: finalIso,
+    });
 
     const { error: insertErr } = await supabase.from("matches").insert(rows);
 
@@ -331,22 +350,41 @@ export default function FinalsManager() {
                     </p>
                   )}
 
-                  {/* Create button */}
+                  {/* Schedule input + Create button */}
                   {!g.finalCreated ? (
-                    <Button
-                      onClick={() => createFinals(group)}
-                      disabled={isBusy}
-                      className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold"
-                    >
-                      {isBusy ? (
-                        <span className="flex items-center gap-2">
-                          <Spinner />
-                          Creating...
-                        </span>
-                      ) : (
-                        "Create Final Matches"
-                      )}
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`${group}-plate-start`} className="text-xs font-bold uppercase tracking-wider">
+                          Plate final start time
+                        </Label>
+                        <Input
+                          id={`${group}-plate-start`}
+                          type="datetime-local"
+                          value={plateStart[group]}
+                          onChange={(e) =>
+                            setPlateStart((prev) => ({ ...prev, [group]: e.target.value }))
+                          }
+                          className="h-11 rounded-xl"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Main Final runs 25 min after the Plate.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => createFinals(group)}
+                        disabled={isBusy}
+                        className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold"
+                      >
+                        {isBusy ? (
+                          <span className="flex items-center gap-2">
+                            <Spinner />
+                            Creating...
+                          </span>
+                        ) : (
+                          "Create Final Matches"
+                        )}
+                      </Button>
+                    </div>
                   ) : (
                     <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-center">
                       <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">

@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import TeamBalancer from "@/components/admin/TeamBalancer";
+import FinalsManager from "@/components/admin/FinalsManager";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ interface Tournament {
   name: string;
   colour: TournamentColour;
   max_team_size: number;
+  start_time: string | null;
 }
 
 // ── Colour helpers ─────────────────────────────────────────
@@ -51,6 +53,88 @@ const COLOUR_BADGE: Record<TournamentColour, string> = {
 };
 
 const PITCH_MAP: Record<string, number> = { Blue: 1, Red: 2, Green: 3 };
+
+// ── Datetime helpers ───────────────────────────────────────
+
+function utcIsoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToUtcIso(local: string): string {
+  return new Date(local).toISOString();
+}
+
+// ── Per-tournament start-time editor ───────────────────────
+
+function TournamentStartTime({
+  tournamentId,
+  initial,
+  onSaved,
+}: {
+  tournamentId: string;
+  initial: string | null;
+  onSaved: (iso: string | null) => void;
+}) {
+  const supabase = getSupabaseBrowserClient();
+  const [value, setValue] = useState(utcIsoToLocalInput(initial));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save(newIso: string | null) {
+    setSaving(true);
+    setErr(null);
+    const { error } = await supabase
+      .from("tournaments")
+      .update({ start_time: newIso })
+      .eq("id", tournamentId);
+    setSaving(false);
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+    onSaved(newIso);
+  }
+
+  return (
+    <div className="mb-4 rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 px-3 py-3">
+      <Label className="text-xs font-bold uppercase tracking-wider">
+        Start time override (leave blank to use global)
+      </Label>
+      <div className="mt-2 flex gap-2">
+        <Input
+          type="datetime-local"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="h-10 flex-1 rounded-lg"
+        />
+        <Button
+          onClick={() => save(value ? localInputToUtcIso(value) : null)}
+          disabled={saving}
+          className="h-10 rounded-lg px-3 text-xs font-bold"
+        >
+          {saving ? <Spinner /> : "Save"}
+        </Button>
+        {value && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setValue("");
+              save(null);
+            }}
+            disabled={saving}
+            className="h-10 rounded-lg px-2 text-xs"
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+      {err && <p className="mt-1.5 text-xs text-destructive">{err}</p>}
+    </div>
+  );
+}
 
 // ── Spinner ────────────────────────────────────────────────
 
@@ -142,7 +226,7 @@ export default function TournamentsPage() {
     setLoading(true);
     const { data, error: fetchErr } = await supabase
       .from("tournaments")
-      .select("id, name, colour, max_team_size")
+      .select("id, name, colour, max_team_size, start_time")
       .order("name")
       .returns<Tournament[]>();
 
@@ -225,7 +309,7 @@ export default function TournamentsPage() {
         colour: newColour,
         max_team_size: newMaxSize,
       })
-      .select("id, name, colour, max_team_size")
+      .select("id, name, colour, max_team_size, start_time")
       .returns<Tournament[]>()
       .single();
 
@@ -501,10 +585,28 @@ export default function TournamentsPage() {
       return;
     }
 
-    // 3. Generate round-robin pairs
+    // 3. Load schedule config (per-tournament override wins, else global)
+    const { data: settingsRows } = await supabase
+      .from("settings")
+      .select("key, value")
+      .in("key", ["competition_start_time", "competition_lunch_start"]);
+    const settingsMap = new Map((settingsRows ?? []).map((r) => [r.key, r.value]));
+    const baseIso = tournament.start_time ?? settingsMap.get("competition_start_time");
+    if (!baseIso) {
+      setError("No start time set. Configure the schedule in /admin/settings first.");
+      setGeneratingId(null);
+      return;
+    }
+    const baseMs = new Date(baseIso).getTime();
+    const lunchIso = settingsMap.get("competition_lunch_start");
+    const lunchMs = lunchIso ? new Date(lunchIso).getTime() : null;
+    const MATCH_MIN = 25;
+    const LUNCH_MIN = 30;
+
+    // 4. Generate round-robin pairs
     const pairs = generateRoundRobin(teams);
 
-    // 4. Delete existing unplayed matches for this tournament
+    // 5. Delete existing unplayed matches for this tournament
     const { error: deleteErr } = await supabase
       .from("matches")
       .delete()
@@ -517,18 +619,22 @@ export default function TournamentsPage() {
       return;
     }
 
-    // 5. Bulk insert new matches
-    const rows = pairs.map(([home, away]) => ({
-      tournament_id: tournament.id,
-      team_a_id: home.id,
-      team_b_id: away.id,
-      score_a: 0,
-      score_b: 0,
-      wickets_a: 0,
-      wickets_b: 0,
-      status: false,
-      scheduled_time: null,
-    }));
+    // 6. Bulk insert new matches with computed scheduled_time
+    const rows = pairs.map(([home, away], i) => {
+      let startMs = baseMs + i * MATCH_MIN * 60_000;
+      if (lunchMs !== null && startMs >= lunchMs) startMs += LUNCH_MIN * 60_000;
+      return {
+        tournament_id: tournament.id,
+        team_a_id: home.id,
+        team_b_id: away.id,
+        score_a: 0,
+        score_b: 0,
+        wickets_a: 0,
+        wickets_b: 0,
+        status: false,
+        scheduled_time: new Date(startMs).toISOString(),
+      };
+    });
 
     const { error: insertErr } = await supabase.from("matches").insert(rows);
 
@@ -768,6 +874,17 @@ export default function TournamentsPage() {
                       Team Balancer — {tournament.name}
                     </p>
 
+                    {/* Per-tournament start-time override */}
+                    <TournamentStartTime
+                      tournamentId={tournament.id}
+                      initial={tournament.start_time}
+                      onSaved={(iso) =>
+                        setTournaments((prev) =>
+                          prev.map((t) => (t.id === tournament.id ? { ...t, start_time: iso } : t)),
+                        )
+                      }
+                    />
+
                     {/* Generate Fixtures */}
                     <button
                       onClick={() => handleGenerateFixtures(tournament)}
@@ -792,6 +909,12 @@ export default function TournamentsPage() {
               </div>
             );
           })}
+      </div>
+
+      {/* ── Finals ─────────────────────────────────────────── */}
+      <div className="mt-8">
+        <h2 className="mx-auto max-w-md px-4 pb-3 text-base font-black">Finals</h2>
+        <FinalsManager />
       </div>
 
       {/* ── Create Tournament Dialog ──────────────────────── */}

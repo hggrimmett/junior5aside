@@ -12,7 +12,21 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+
+// Convert stored UTC ISO ("2026-07-12T08:00:00Z") to a value usable in
+// <input type="datetime-local"> ("2026-07-12T09:00" in local time).
+function utcIsoToLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToUtcIso(local: string): string {
+  return new Date(local).toISOString();
+}
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -41,6 +55,10 @@ export default function AdminSettingsPage() {
 
   const [downloading, setDownloading] = useState(false);
 
+  const [scheduleStart, setScheduleStart] = useState<string>("");
+  const [scheduleLunch, setScheduleLunch] = useState<string>("");
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+
   // ── Auth guard ──────────────────────────────────────────
 
   useEffect(() => {
@@ -68,7 +86,7 @@ export default function AdminSettingsPage() {
   // ── Fetch counts ─────────────────────────────────────────
 
   const fetchCounts = useCallback(async () => {
-    const [playersRes, parentsRes, matchesRes, deadlineRes] = await Promise.all([
+    const [playersRes, parentsRes, matchesRes, scheduleRes] = await Promise.all([
       supabase.from("players").select("id", { count: "exact", head: true }),
       supabase
         .from("profiles")
@@ -77,9 +95,8 @@ export default function AdminSettingsPage() {
       supabase.from("matches").select("id", { count: "exact", head: true }),
       supabase
         .from("settings")
-        .select("value")
-        .eq("key", "registration_deadline")
-        .single<{ value: string }>(),
+        .select("key, value")
+        .in("key", ["registration_deadline", "competition_start_time", "competition_lunch_start"]),
     ]);
 
     setCounts({
@@ -87,9 +104,13 @@ export default function AdminSettingsPage() {
       parents: parentsRes.count ?? 0,
       matches: matchesRes.count ?? 0,
     });
-    if (deadlineRes.data?.value) {
-      setDeadline(new Date(deadlineRes.data.value));
-    }
+    const settingsMap = new Map((scheduleRes.data ?? []).map((s) => [s.key, s.value]));
+    const dl = settingsMap.get("registration_deadline");
+    if (dl) setDeadline(new Date(dl));
+    const start = settingsMap.get("competition_start_time");
+    if (start) setScheduleStart(utcIsoToLocalInput(start));
+    const lunch = settingsMap.get("competition_lunch_start");
+    if (lunch) setScheduleLunch(utcIsoToLocalInput(lunch));
     setLoading(false);
   }, [supabase]);
 
@@ -171,6 +192,27 @@ export default function AdminSettingsPage() {
 
   async function handleReopenEntries() {
     await updateDeadline("2026-07-10T22:59:00Z", "Registration reopened until 10 Jul.");
+  }
+
+  // ── Schedule ─────────────────────────────────────────────
+
+  async function handleSaveSchedule() {
+    setScheduleSaving(true);
+    setError(null);
+    const updates: { key: string; value: string }[] = [];
+    if (scheduleStart) updates.push({ key: "competition_start_time", value: localInputToUtcIso(scheduleStart) });
+    if (scheduleLunch) updates.push({ key: "competition_lunch_start", value: localInputToUtcIso(scheduleLunch) });
+
+    for (const u of updates) {
+      const { error: e } = await supabase.from("settings").update({ value: u.value }).eq("key", u.key);
+      if (e) {
+        setError(`Schedule save failed (${u.key}): ${e.message}`);
+        setScheduleSaving(false);
+        return;
+      }
+    }
+    setScheduleSaving(false);
+    showToast("Schedule saved. Regenerate fixtures to apply.");
   }
 
   // ── CSV backup ───────────────────────────────────────────
@@ -293,6 +335,55 @@ export default function AdminSettingsPage() {
           <StatCard label="Parents" value={counts.parents} loading={loading} href="/admin/parents" />
           <StatCard label="Matches" value={counts.matches} loading={loading} />
         </div>
+
+        {/* ── Schedule card ────────────────────────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">Schedule</CardTitle>
+            <CardDescription className="text-sm">
+              Global competition start and lunch break. Each match is 25 min back-to-back.
+              Any match starting at/after the lunch time gets pushed by 30 min.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            <Separator />
+            <div className="space-y-1.5">
+              <Label htmlFor="sched-start" className="text-xs font-bold uppercase tracking-wider">
+                Competition start
+              </Label>
+              <Input
+                id="sched-start"
+                type="datetime-local"
+                value={scheduleStart}
+                onChange={(e) => setScheduleStart(e.target.value)}
+                className="h-11 rounded-xl"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sched-lunch" className="text-xs font-bold uppercase tracking-wider">
+                Lunch start (30 min)
+              </Label>
+              <Input
+                id="sched-lunch"
+                type="datetime-local"
+                value={scheduleLunch}
+                onChange={(e) => setScheduleLunch(e.target.value)}
+                className="h-11 rounded-xl"
+              />
+            </div>
+            <Button
+              onClick={handleSaveSchedule}
+              disabled={scheduleSaving || (!scheduleStart && !scheduleLunch)}
+              className="h-12 w-full rounded-xl font-bold gap-2"
+            >
+              {scheduleSaving ? <><Spinner />Saving...</> : "Save schedule"}
+            </Button>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              After saving, go to <code>/admin/tournaments</code> and re-run <strong>Generate Fixtures</strong> on each tournament for the times to apply.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* ── Registration entries card ────────────────── */}
         <Card className="rounded-2xl shadow-md">
