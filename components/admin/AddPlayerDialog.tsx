@@ -51,6 +51,57 @@ function generatePassword(): string {
   return s;
 }
 
+// Parse the minimum subset of a vCard we care about: FN, TEL, EMAIL.
+function parseVCard(text: string): { fullName: string; mobile: string; email: string } {
+  const out = { fullName: "", mobile: "", email: "" };
+  const lines = text
+    .replace(/\r\n[ \t]/g, "") // unfold long lines
+    .split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const colonIdx = line.indexOf(":");
+    if (colonIdx === -1) continue;
+    const prefix = line.slice(0, colonIdx).toUpperCase();
+    const value = line.slice(colonIdx + 1);
+    const propName = prefix.split(";")[0];
+    if (propName === "FN" && !out.fullName) out.fullName = value.replace(/\\,/g, ",").replace(/\\;/g, ";");
+    else if (propName === "TEL" && !out.mobile) out.mobile = value.trim();
+    else if (propName === "EMAIL" && !out.email) out.email = value.trim();
+  }
+  return out;
+}
+
+// Chrome Android exposes the OS contact picker via navigator.contacts.
+// Returns null on browsers that don't support it (including iOS Safari).
+async function pickFromDeviceContacts(): Promise<
+  { fullName: string; mobile: string; email: string } | null
+> {
+  const nav = navigator as unknown as {
+    contacts?: {
+      select: (
+        props: string[],
+        opts?: { multiple?: boolean },
+      ) => Promise<
+        Array<{ name?: string[]; tel?: string[]; email?: string[] }>
+      >;
+    };
+  };
+  if (!nav.contacts?.select) return null;
+  try {
+    const results = await nav.contacts.select(["name", "tel", "email"], { multiple: false });
+    if (!results.length) return null;
+    const r = results[0];
+    return {
+      fullName: r.name?.[0] ?? "",
+      mobile: r.tel?.[0] ?? "",
+      email: r.email?.[0] ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function AddPlayerDialog({
   open,
   onOpenChange,
@@ -87,6 +138,45 @@ export default function AddPlayerDialog({
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const [contactPickerSupported, setContactPickerSupported] = useState(false);
+  useEffect(() => {
+    const nav = navigator as unknown as { contacts?: { select?: unknown } };
+    setContactPickerSupported(!!nav.contacts?.select);
+  }, []);
+
+  function applyImportedContact(c: { fullName: string; mobile: string; email: string }) {
+    if (c.fullName) setNewParentName(c.fullName);
+    if (c.mobile) setNewParentMobile(c.mobile);
+    if (c.email) setNewParentEmail(c.email);
+    if (!newParentPassword) setNewParentPassword(generatePassword());
+  }
+
+  async function handlePickContact() {
+    setError(null);
+    const c = await pickFromDeviceContacts();
+    if (!c) {
+      setError("Couldn't read a contact from your device.");
+      return;
+    }
+    applyImportedContact(c);
+  }
+
+  async function handleVCardFile(file: File | null | undefined) {
+    setError(null);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const c = parseVCard(text);
+      if (!c.fullName && !c.mobile && !c.email) {
+        setError("That file didn't contain a readable contact.");
+        return;
+      }
+      applyImportedContact(c);
+    } catch {
+      setError("Couldn't read that file.");
+    }
+  }
 
   const resetForm = useCallback(() => {
     setMode("existing");
@@ -305,6 +395,37 @@ export default function AddPlayerDialog({
           {/* New-family fields */}
           {mode === "new" && (
             <div className="space-y-2">
+              {/* Import contact */}
+              <div className="flex flex-wrap gap-2 rounded-lg border border-dashed bg-muted/30 p-2">
+                {contactPickerSupported && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePickContact}
+                    className="h-9 flex-1 rounded-lg text-xs font-bold"
+                  >
+                    Pick from phone contacts
+                  </Button>
+                )}
+                <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center rounded-lg border border-input bg-background px-3 text-xs font-bold text-foreground hover:bg-muted">
+                  Import vCard file
+                  <input
+                    type="file"
+                    accept=".vcf,text/vcard,text/x-vcard,text/directory"
+                    onChange={(e) => {
+                      handleVCardFile(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              {!contactPickerSupported && (
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  On iPhone: open Contacts → the person → Share → <strong>Save to Files</strong>, then tap Import vCard here.
+                </p>
+              )}
+
               <div className="space-y-1">
                 <Label className="text-xs font-bold uppercase tracking-wider">Parent full name</Label>
                 <Input value={newParentName} onChange={(e) => setNewParentName(e.target.value)} className="h-10 rounded-lg" />
