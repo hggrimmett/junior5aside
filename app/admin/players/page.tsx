@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import AddPlayerDialog from "@/components/admin/AddPlayerDialog";
 
 interface PlayerRow {
   id: string;
@@ -32,48 +34,50 @@ export default function AdminPlayersPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filterGroup, setFilterGroup] = useState<"All" | "Blue" | "Green" | "Red">("All");
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+
+    const { data: players, error: playersErr } = await supabase
+      .from("players")
+      .select("id, first_name, last_name, age_group, avatar_url, team_id, parent_id, created_at")
+      .order("created_at", { ascending: false });
+
+    if (playersErr) {
+      setError(playersErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const parentIds = Array.from(new Set((players ?? []).map((p) => p.parent_id)));
+    const teamIds = Array.from(new Set((players ?? []).map((p) => p.team_id).filter(Boolean) as string[]));
+
+    const [parentsRes, teamsRes] = await Promise.all([
+      parentIds.length
+        ? supabase.from("profiles").select("id, full_name").in("id", parentIds)
+        : Promise.resolve({ data: [] }),
+      teamIds.length
+        ? supabase.from("teams").select("id, name").in("id", teamIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const parentMap = new Map((parentsRes.data ?? []).map((p) => [p.id, p.full_name]));
+    const teamMap = new Map((teamsRes.data ?? []).map((t) => [t.id, t.name]));
+
+    setRows(
+      (players ?? []).map((p) => ({
+        ...p,
+        parent_name: parentMap.get(p.parent_id) ?? "—",
+        team_name: p.team_id ? teamMap.get(p.team_id) ?? null : null,
+      }))
+    );
+    setLoading(false);
+  }, [supabase]);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-
-      const { data: players, error: playersErr } = await supabase
-        .from("players")
-        .select("id, first_name, last_name, age_group, avatar_url, team_id, parent_id, created_at")
-        .order("created_at", { ascending: false });
-
-      if (playersErr) {
-        setError(playersErr.message);
-        setLoading(false);
-        return;
-      }
-
-      const parentIds = Array.from(new Set((players ?? []).map((p) => p.parent_id)));
-      const teamIds = Array.from(new Set((players ?? []).map((p) => p.team_id).filter(Boolean) as string[]));
-
-      const [parentsRes, teamsRes] = await Promise.all([
-        parentIds.length
-          ? supabase.from("profiles").select("id, full_name").in("id", parentIds)
-          : Promise.resolve({ data: [] }),
-        teamIds.length
-          ? supabase.from("teams").select("id, name").in("id", teamIds)
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      const parentMap = new Map((parentsRes.data ?? []).map((p) => [p.id, p.full_name]));
-      const teamMap = new Map((teamsRes.data ?? []).map((t) => [t.id, t.name]));
-
-      setRows(
-        (players ?? []).map((p) => ({
-          ...p,
-          parent_name: parentMap.get(p.parent_id) ?? "—",
-          team_name: p.team_id ? teamMap.get(p.team_id) ?? null : null,
-        }))
-      );
-      setLoading(false);
-    }
     load();
-  }, [supabase]);
+  }, [load]);
 
   const filtered = rows.filter((r) => {
     if (filterGroup !== "All" && r.age_group !== filterGroup) return false;
@@ -101,6 +105,19 @@ export default function AdminPlayersPage() {
             {loading ? "…" : `${rows.length} total`}
           </p>
         </div>
+
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="h-11 w-full rounded-xl bg-cricket text-cricket-foreground hover:opacity-90 font-bold"
+        >
+          + Add player
+        </Button>
+
+        <AddPlayerDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onCreated={load}
+        />
 
         <input
           type="search"
