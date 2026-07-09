@@ -84,6 +84,7 @@ export default function AddPlayerDialog({
   const [teamId, setTeamId] = useState<string>("");
 
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -101,6 +102,7 @@ export default function AddPlayerDialog({
     setTeamId("");
     setError(null);
     setSuccessMsg(null);
+    setSubmitted(false);
   }, []);
 
   // Fetch parents + teams when dialog opens
@@ -217,6 +219,7 @@ export default function AddPlayerDialog({
       return;
     }
 
+    setSubmitted(true);
     if (mode === "new") {
       setSuccessMsg(
         `Created. Give the parent this password to log in: ${newParentPassword}`,
@@ -230,7 +233,7 @@ export default function AddPlayerDialog({
       setTimeout(() => {
         resetForm();
         onOpenChange(false);
-      }, 600);
+      }, 900);
     }
   }
 
@@ -400,10 +403,10 @@ export default function AddPlayerDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={submitting}
-            className="h-11 rounded-xl bg-cricket text-cricket-foreground hover:opacity-90 font-bold"
+            disabled={submitting || submitted}
+            className="h-11 rounded-xl bg-cricket text-cricket-foreground hover:opacity-90 font-bold disabled:opacity-100"
           >
-            {submitting ? "Adding..." : "Add player"}
+            {submitted ? "✓ Submitted" : submitting ? "Adding..." : "Add player"}
           </Button>
         </DialogFooter>
       </DialogContent>
