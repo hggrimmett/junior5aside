@@ -4,96 +4,79 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import AddMentorDialog from "@/components/admin/AddMentorDialog";
 import RoleAndDelete from "@/components/admin/RoleAndDelete";
 
-interface ParentRow {
+interface MentorRow {
   id: string;
   full_name: string;
   email: string | null;
   mobile_number: string | null;
-  created_at: string;
-  child_count: number;
-  children: { first_name: string; last_name: string; age_group: string }[];
+  team_count: number;
 }
 
 function vcardEscape(s: string): string {
   return s.replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
 }
 
-function buildVCard(p: ParentRow): string {
-  const [first, ...rest] = p.full_name.trim().split(/\s+/);
+function downloadMentorVCard(m: MentorRow) {
+  const [first, ...rest] = m.full_name.trim().split(/\s+/);
   const last = rest.join(" ");
-  const kidsNote = p.children.length
-    ? `Parent of ${p.children.map((c) => `${c.first_name} (${c.age_group})`).join(", ")} — Junior 5-a-Side`
-    : "Junior 5-a-Side parent";
-  const lines = [
+  const vcf = [
     "BEGIN:VCARD",
     "VERSION:3.0",
     `N:${vcardEscape(last)};${vcardEscape(first ?? "")};;;`,
-    `FN:${vcardEscape(p.full_name)}`,
-    p.mobile_number ? `TEL;TYPE=CELL:${vcardEscape(p.mobile_number)}` : "",
-    p.email ? `EMAIL;TYPE=INTERNET:${vcardEscape(p.email)}` : "",
-    `NOTE:${vcardEscape(kidsNote)}`,
-    `CATEGORIES:Junior 5-a-Side`,
+    `FN:${vcardEscape(m.full_name)}`,
+    m.mobile_number ? `TEL;TYPE=CELL:${vcardEscape(m.mobile_number)}` : "",
+    m.email ? `EMAIL;TYPE=INTERNET:${vcardEscape(m.email)}` : "",
+    "NOTE:Mentor — Junior 5-a-Side",
+    "CATEGORIES:Junior 5-a-Side",
     "END:VCARD",
-  ];
-  return lines.filter(Boolean).join("\r\n");
-}
-
-function downloadVCard(p: ParentRow) {
-  const vcf = buildVCard(p);
+  ]
+    .filter(Boolean)
+    .join("\r\n");
   const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${p.full_name.replace(/[^a-zA-Z0-9]+/g, "_")}.vcf`;
+  a.download = `${m.full_name.replace(/[^a-zA-Z0-9]+/g, "_")}.vcf`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function AdminParentsPage() {
+export default function AdminMentorsPage() {
   const supabase = getSupabaseBrowserClient();
-  const [rows, setRows] = useState<ParentRow[]>([]);
+  const [rows, setRows] = useState<MentorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-
-    const { data: parents, error: parentsErr } = await supabase
+    const { data: mentors, error: mErr } = await supabase
       .from("profiles")
-      .select("id, full_name, email, mobile_number, created_at")
-      .eq("role", "parent")
-      .order("created_at", { ascending: false });
-
-    if (parentsErr) {
-      setError(parentsErr.message);
+      .select("id, full_name, email, mobile_number")
+      .eq("role", "mentor")
+      .order("full_name", { ascending: true });
+    if (mErr) {
+      setError(mErr.message);
       setLoading(false);
       return;
     }
-
-    const ids = (parents ?? []).map((p) => p.id);
-    const childrenByParent = new Map<string, { first_name: string; last_name: string; age_group: string }[]>();
-    if (ids.length > 0) {
-      const { data: players } = await supabase
-        .from("players")
-        .select("parent_id, first_name, last_name, age_group")
-        .in("parent_id", ids);
-      for (const p of players ?? []) {
-        const arr = childrenByParent.get(p.parent_id) ?? [];
-        arr.push({ first_name: p.first_name, last_name: p.last_name, age_group: p.age_group });
-        childrenByParent.set(p.parent_id, arr);
+    const ids = (mentors ?? []).map((m) => m.id);
+    const teamCounts = new Map<string, number>();
+    if (ids.length) {
+      const { data: teams } = await supabase.from("teams").select("mentor_id").in("mentor_id", ids);
+      for (const t of teams ?? []) {
+        if (t.mentor_id) teamCounts.set(t.mentor_id, (teamCounts.get(t.mentor_id) ?? 0) + 1);
       }
     }
-
     setRows(
-      (parents ?? []).map((p) => {
-        const children = childrenByParent.get(p.id) ?? [];
-        return { ...p, child_count: children.length, children };
-      })
+      (mentors ?? []).map((m) => ({ ...m, team_count: teamCounts.get(m.id) ?? 0 })),
     );
     setLoading(false);
   }, [supabase]);
@@ -116,11 +99,20 @@ export default function AdminParentsPage() {
     <div className="min-h-screen bg-muted/30">
       <div className="mx-auto max-w-md px-4 py-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-extrabold tracking-tight">Parents</h1>
+          <h1 className="text-xl font-extrabold tracking-tight">Mentors</h1>
           <p className="text-sm text-muted-foreground tabular-nums">
             {loading ? "…" : `${rows.length} total`}
           </p>
         </div>
+
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="h-11 w-full rounded-xl bg-cricket text-cricket-foreground hover:opacity-90 font-bold"
+        >
+          + Add mentor
+        </Button>
+
+        <AddMentorDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreated={load} />
 
         <input
           type="search"
@@ -138,7 +130,7 @@ export default function AdminParentsPage() {
 
         {loading && (
           <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
             ))}
           </div>
@@ -147,63 +139,52 @@ export default function AdminParentsPage() {
         {!loading && filtered.length === 0 && (
           <Card className="rounded-2xl">
             <CardContent className="py-6 text-center text-sm text-muted-foreground">
-              {rows.length === 0 ? "No parents have registered yet." : "No matches."}
+              {rows.length === 0 ? "No mentors yet." : "No matches."}
             </CardContent>
           </Card>
         )}
 
         <div className="space-y-2">
-          {filtered.map((p) => (
-            <Card key={p.id} className="rounded-2xl shadow-sm">
+          {filtered.map((m) => (
+            <Card key={m.id} className="rounded-2xl shadow-sm">
               <CardContent className="py-4 px-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-foreground">{p.full_name}</p>
-                    {p.email && (
-                      <a
-                        href={`mailto:${p.email}`}
-                        className="block truncate text-xs text-primary hover:underline"
-                      >
-                        {p.email}
+                    <p className="truncate font-bold text-foreground">{m.full_name}</p>
+                    {m.email && (
+                      <a href={`mailto:${m.email}`} className="block truncate text-xs text-primary hover:underline">
+                        {m.email}
                       </a>
                     )}
-                    {p.mobile_number && (
-                      <a
-                        href={`tel:${p.mobile_number}`}
-                        className="block truncate text-xs text-muted-foreground hover:underline"
-                      >
-                        {p.mobile_number}
+                    {m.mobile_number && (
+                      <a href={`tel:${m.mobile_number}`} className="block truncate text-xs text-muted-foreground hover:underline">
+                        {m.mobile_number}
                       </a>
                     )}
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-2">
                     <div className="text-right">
-                      <p className="text-2xl font-black tabular-nums leading-none">
-                        {p.child_count}
-                      </p>
+                      <p className="text-2xl font-black tabular-nums leading-none">{m.team_count}</p>
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {p.child_count === 1 ? "kid" : "kids"}
+                        {m.team_count === 1 ? "team" : "teams"}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => downloadVCard(p)}
+                      onClick={() => downloadMentorVCard(m)}
                       className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-background px-3 text-[11px] font-bold text-foreground shadow-sm hover:bg-muted"
-                      aria-label={`Save ${p.full_name} to contacts`}
+                      aria-label={`Save ${m.full_name} to contacts`}
                     >
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M12 3v14m-3-3l3 3 3-3M22 8v4M22 12h-4" />
-                      </svg>
                       Save contact
                     </button>
                   </div>
                 </div>
                 <RoleAndDelete
-                  profileId={p.id}
-                  currentRole="parent"
-                  displayName={p.full_name}
-                  cascadeWarning={p.child_count > 0
-                    ? `Also deletes ${p.child_count} kid${p.child_count === 1 ? "" : "s"} from players.`
+                  profileId={m.id}
+                  currentRole="mentor"
+                  displayName={m.full_name}
+                  cascadeWarning={m.team_count > 0
+                    ? `Deleting will unlink ${m.team_count} team${m.team_count === 1 ? "" : "s"} from a mentor.`
                     : null}
                   onChanged={load}
                 />
@@ -213,10 +194,7 @@ export default function AdminParentsPage() {
         </div>
 
         <div className="pt-2 text-center">
-          <Link
-            href="/admin/settings"
-            className="text-sm font-semibold text-muted-foreground hover:underline"
-          >
+          <Link href="/admin/settings" className="text-sm font-semibold text-muted-foreground hover:underline">
             ← Back to admin
           </Link>
         </div>

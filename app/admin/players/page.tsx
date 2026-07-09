@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import AddPlayerDialog from "@/components/admin/AddPlayerDialog";
+import PlayerActions from "@/components/admin/PlayerActions";
 
 interface PlayerRow {
   id: string;
@@ -196,11 +197,18 @@ export default function AdminPlayersPage() {
                       </p>
                     )}
                   </div>
-                  <Badge
-                    className={`shrink-0 ${AGE_GROUP_COLOUR[p.age_group] ?? "bg-muted text-foreground"}`}
-                  >
-                    {p.age_group}
-                  </Badge>
+                  <div className="shrink-0 flex flex-col items-end gap-2">
+                    <Badge
+                      className={`${AGE_GROUP_COLOUR[p.age_group] ?? "bg-muted text-foreground"}`}
+                    >
+                      {p.age_group}
+                    </Badge>
+                    <PlayerActions
+                      playerId={p.id}
+                      displayName={`${p.first_name} ${p.last_name}`}
+                      onChanged={load}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
