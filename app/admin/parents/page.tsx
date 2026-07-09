@@ -12,6 +12,44 @@ interface ParentRow {
   mobile_number: string | null;
   created_at: string;
   child_count: number;
+  children: { first_name: string; last_name: string; age_group: string }[];
+}
+
+function vcardEscape(s: string): string {
+  return s.replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+}
+
+function buildVCard(p: ParentRow): string {
+  const [first, ...rest] = p.full_name.trim().split(/\s+/);
+  const last = rest.join(" ");
+  const kidsNote = p.children.length
+    ? `Parent of ${p.children.map((c) => `${c.first_name} (${c.age_group})`).join(", ")} — Junior 5-a-Side`
+    : "Junior 5-a-Side parent";
+  const lines = [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    `N:${vcardEscape(last)};${vcardEscape(first ?? "")};;;`,
+    `FN:${vcardEscape(p.full_name)}`,
+    p.mobile_number ? `TEL;TYPE=CELL:${vcardEscape(p.mobile_number)}` : "",
+    p.email ? `EMAIL;TYPE=INTERNET:${vcardEscape(p.email)}` : "",
+    `NOTE:${vcardEscape(kidsNote)}`,
+    `CATEGORIES:Junior 5-a-Side`,
+    "END:VCARD",
+  ];
+  return lines.filter(Boolean).join("\r\n");
+}
+
+function downloadVCard(p: ParentRow) {
+  const vcf = buildVCard(p);
+  const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${p.full_name.replace(/[^a-zA-Z0-9]+/g, "_")}.vcf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function AdminParentsPage() {
@@ -38,22 +76,24 @@ export default function AdminParentsPage() {
       }
 
       const ids = (parents ?? []).map((p) => p.id);
-      const childCounts = new Map<string, number>();
+      const childrenByParent = new Map<string, { first_name: string; last_name: string; age_group: string }[]>();
       if (ids.length > 0) {
         const { data: players } = await supabase
           .from("players")
-          .select("parent_id")
+          .select("parent_id, first_name, last_name, age_group")
           .in("parent_id", ids);
         for (const p of players ?? []) {
-          childCounts.set(p.parent_id, (childCounts.get(p.parent_id) ?? 0) + 1);
+          const arr = childrenByParent.get(p.parent_id) ?? [];
+          arr.push({ first_name: p.first_name, last_name: p.last_name, age_group: p.age_group });
+          childrenByParent.set(p.parent_id, arr);
         }
       }
 
       setRows(
-        (parents ?? []).map((p) => ({
-          ...p,
-          child_count: childCounts.get(p.id) ?? 0,
-        }))
+        (parents ?? []).map((p) => {
+          const children = childrenByParent.get(p.id) ?? [];
+          return { ...p, child_count: children.length, children };
+        })
       );
       setLoading(false);
     }
@@ -134,13 +174,26 @@ export default function AdminParentsPage() {
                       </a>
                     )}
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-2xl font-black tabular-nums leading-none">
-                      {p.child_count}
-                    </p>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {p.child_count === 1 ? "kid" : "kids"}
-                    </p>
+                  <div className="shrink-0 flex flex-col items-end gap-2">
+                    <div className="text-right">
+                      <p className="text-2xl font-black tabular-nums leading-none">
+                        {p.child_count}
+                      </p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {p.child_count === 1 ? "kid" : "kids"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => downloadVCard(p)}
+                      className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-background px-3 text-[11px] font-bold text-foreground shadow-sm hover:bg-muted"
+                      aria-label={`Save ${p.full_name} to contacts`}
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M12 3v14m-3-3l3 3 3-3M22 8v4M22 12h-4" />
+                      </svg>
+                      Save contact
+                    </button>
                   </div>
                 </div>
               </CardContent>
