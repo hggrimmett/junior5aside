@@ -882,13 +882,24 @@ export default function ScorePage() {
 
     return (
       <div className="mx-auto max-w-md min-h-screen bg-background pb-10">
-        <div className="bg-cricket px-4 pt-6 pb-4">
-          <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
-            Innings Setup
-          </p>
-          <h1 className="text-cricket-foreground text-xl font-black tracking-tight leading-tight">
-            {battingLabel} Batting
-          </h1>
+        <div className="bg-cricket px-4 pt-6 pb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
+              Innings Setup
+            </p>
+            <h1 className="text-cricket-foreground text-xl font-black tracking-tight leading-tight truncate">
+              {battingLabel} Batting
+            </h1>
+          </div>
+          <button
+            onClick={async () => {
+              await supabase.from("matches").update({ locked_by: null, locked_by_name: null, locked_at: null }).eq("id", matchId);
+              window.location.href = "/fixtures";
+            }}
+            className="shrink-0 h-9 px-3 rounded-full bg-white/15 text-white text-xs font-bold active:bg-white/25 transition-colors"
+          >
+            Save &amp; Exit
+          </button>
         </div>
 
         <div className="px-4 pt-4 space-y-6">
@@ -990,13 +1001,24 @@ export default function ScorePage() {
 
     return (
       <div className="mx-auto max-w-md min-h-screen bg-background pb-10">
-        <div className="bg-cricket px-4 pt-6 pb-4">
-          <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
-            Match Complete
-          </p>
-          <h1 className="text-cricket-foreground text-xl font-black tracking-tight leading-tight">
-            {match.team_a.name} vs {match.team_b.name}
-          </h1>
+        <div className="bg-cricket px-4 pt-6 pb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-cricket-foreground/70 text-xs font-bold uppercase tracking-widest mb-1">
+              Match Complete
+            </p>
+            <h1 className="text-cricket-foreground text-xl font-black tracking-tight leading-tight truncate">
+              {match.team_a.name} vs {match.team_b.name}
+            </h1>
+          </div>
+          <button
+            onClick={async () => {
+              await supabase.from("matches").update({ locked_by: null, locked_by_name: null, locked_at: null }).eq("id", matchId);
+              window.location.href = "/fixtures";
+            }}
+            className="shrink-0 h-9 px-3 rounded-full bg-white/15 text-white text-xs font-bold active:bg-white/25 transition-colors"
+          >
+            Save &amp; Exit
+          </button>
         </div>
 
         <div className="px-4 pt-6 space-y-6">
