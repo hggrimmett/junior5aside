@@ -183,7 +183,6 @@ export default function CompetitionsPage() {
                   <p className={`text-sm font-black tracking-tight ${style.text}`}>
                     {t.name}
                   </p>
-                  <span className="text-[11px] text-muted-foreground">· {style.years}</span>
                 </div>
 
                 {tournamentTeams.length === 0 ? (
