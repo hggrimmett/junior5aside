@@ -207,6 +207,7 @@ export default function ScorePage() {
   // Phase / flow state
   const [phase, setPhase] = useState<Phase>("team_a_setup");
   const [transition, setTransition] = useState<TransitionType>(null);
+  const [pendingTransition, setPendingTransition] = useState<TransitionType>(null);
 
   // Team A innings selections
   const [aPair1, setAPair1] = useState<string[]>([]);
@@ -441,14 +442,17 @@ export default function ScorePage() {
   useEffect(() => {
     if (phase !== "team_a_innings" && phase !== "team_b_innings") return;
     if (!currentBattingTeamId) return;
+    // Don't fire the modal if we're already in a transition or already prompting.
+    if (transition || pendingTransition) return;
 
     const state = deriveInningsState(events, currentBattingTeamId);
 
     // Check if innings is complete (24 legal balls = 4 overs)
     if (state.totalLegalBalls >= 24) {
       if (phase === "team_a_innings") {
-        setTransition("over_4_done");
+        setPendingTransition("over_4_done");
       } else {
+        // End of team B innings — no next-bowler selection needed; go straight to match complete.
         setPhase("match_complete");
       }
       return;
@@ -461,14 +465,14 @@ export default function ScorePage() {
 
       // Only show transition if we haven't already set up the next bowler
       if (completedOver === 1 && bowlersSet.length < 2) {
-        setTransition("over_1_done");
+        setPendingTransition("over_1_done");
       } else if (completedOver === 2 && bowlersSet.length < 3) {
-        setTransition("over_2_done");
+        setPendingTransition("over_2_done");
       } else if (completedOver === 3 && bowlersSet.length < 4) {
-        setTransition("over_3_done");
+        setPendingTransition("over_3_done");
       }
     }
-  }, [events, phase, currentBattingTeamId, aBowlers, bBowlers]);
+  }, [events, phase, currentBattingTeamId, aBowlers, bBowlers, transition, pendingTransition]);
 
   // ── Insert event ───────────────────────────────────────────────────────────
 
@@ -1338,10 +1342,35 @@ export default function ScorePage() {
       </div>
 
       {/* Menu overlay */}
-      {/* Menu overlay */}
       {showMenu && (
         <div className="absolute inset-0 z-40 bg-black/50 flex items-center justify-center px-6" onClick={() => setShowMenu(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-background p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            {(phase === "team_a_innings" || phase === "team_b_innings") && !transition && !pendingTransition && currentBattingTeamId && (() => {
+              const state = deriveInningsState(events, currentBattingTeamId);
+              const completedOver = Math.floor(state.totalLegalBalls / 6);
+              const key: TransitionType | null =
+                state.totalLegalBalls >= 24
+                  ? "over_4_done"
+                  : completedOver === 3
+                  ? "over_3_done"
+                  : completedOver === 2
+                  ? "over_2_done"
+                  : completedOver >= 1
+                  ? "over_1_done"
+                  : null;
+              return (
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    if (key) setPendingTransition(key);
+                  }}
+                  disabled={!key}
+                  className="w-full h-12 rounded-xl border-2 border-cricket text-sm font-bold text-cricket active:scale-[0.98] transition-transform disabled:opacity-40"
+                >
+                  End Over
+                </button>
+              );
+            })()}
             <button
               onClick={async () => {
                 setShowMenu(false);
@@ -1359,6 +1388,38 @@ export default function ScorePage() {
               Reset Match
             </button>
             <button onClick={() => setShowMenu(false)} className="w-full h-12 text-sm font-bold text-muted-foreground">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* End-of-over confirmation modal */}
+      {pendingTransition && (
+        <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center px-6">
+          <div className="w-full max-w-sm rounded-2xl bg-background p-5 space-y-3">
+            <p className="text-lg font-black text-foreground text-center">
+              End of the over
+            </p>
+            <p className="text-sm text-muted-foreground text-center">
+              {pendingTransition === "over_4_done"
+                ? "End of innings — continue to switch batting side, or cancel to make changes."
+                : "Continue to pick the next bowler, or cancel to review or undo the last ball."}
+            </p>
+            <button
+              onClick={() => {
+                const next = pendingTransition;
+                setPendingTransition(null);
+                setTransition(next);
+              }}
+              className="w-full h-12 rounded-xl bg-cricket text-cricket-foreground text-base font-black active:scale-[0.98] transition-transform"
+            >
+              Continue
+            </button>
+            <button
+              onClick={() => setPendingTransition(null)}
+              className="w-full h-12 rounded-xl border-2 border-border text-sm font-bold text-muted-foreground active:scale-[0.98] transition-transform"
+            >
               Cancel
             </button>
           </div>
