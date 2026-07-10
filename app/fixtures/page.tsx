@@ -147,6 +147,8 @@ export default function FixturesPage() {
         .select(
           "id, tournament_id, team_a:teams!team_a_id(id, name, mentor_id), team_b:teams!team_b_id(id, name, mentor_id), score_a, score_b, wickets_a, wickets_b, status, scheduled_time, match_type, locked_by, locked_by_name"
         )
+        .order("scheduled_time", { ascending: true, nullsFirst: false })
+        .order("id", { ascending: true })
         .returns<MatchRow[]>(),
       // Fetch distinct match_ids from match_events where the linked match is not yet complete
       // We do this by fetching match_events and cross-referencing with status=false matches
@@ -475,10 +477,10 @@ function MatchCard({
                   </Badge>
                   <div className="text-right space-y-0.5">
                     <p className={`text-xs tabular-nums leading-tight ${aWon ? "font-black text-foreground" : "font-semibold text-muted-foreground"}`}>
-                      {teamAName}: {scoreLabel(match.score_a, match.wickets_a)} <span className="text-[10px]">Net {netA}</span>
+                      {teamAName}: <span className="text-sm">{netA}</span> <span className="text-[10px] font-normal text-muted-foreground">({scoreLabel(match.score_a, match.wickets_a)})</span>
                     </p>
                     <p className={`text-xs tabular-nums leading-tight ${bWon ? "font-black text-foreground" : "font-semibold text-muted-foreground"}`}>
-                      {teamBName}: {scoreLabel(match.score_b, match.wickets_b)} <span className="text-[10px]">Net {netB}</span>
+                      {teamBName}: <span className="text-sm">{netB}</span> <span className="text-[10px] font-normal text-muted-foreground">({scoreLabel(match.score_b, match.wickets_b)})</span>
                     </p>
                   </div>
                 </>

@@ -383,10 +383,10 @@ export default function MatchCentrePage() {
                 {teamAName}
               </p>
               <p className="text-3xl font-black tabular-nums text-foreground leading-none">
-                {statsA.runs}/{statsA.wickets}
+                {netScoreA}
               </p>
               <p className="text-[11px] font-semibold text-muted-foreground">
-                Net {netScoreA}
+                {statsA.runs}/{statsA.wickets}
               </p>
             </div>
 
@@ -408,10 +408,10 @@ export default function MatchCentrePage() {
                 {teamBName}
               </p>
               <p className="text-3xl font-black tabular-nums text-foreground leading-none">
-                {statsB.runs}/{statsB.wickets}
+                {netScoreB}
               </p>
               <p className="text-[11px] font-semibold text-muted-foreground">
-                Net {netScoreB}
+                {statsB.runs}/{statsB.wickets}
               </p>
             </div>
 
