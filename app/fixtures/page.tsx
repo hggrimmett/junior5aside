@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { usePublishGate } from "@/lib/use-publish-gate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -114,6 +115,7 @@ function scoreLabel(
 
 export default function FixturesPage() {
   const supabase = getSupabaseBrowserClient();
+  const gate = usePublishGate();
 
   const [loading, setLoading] = useState(true);
   const [byColour, setByColour] = useState<
@@ -237,7 +239,16 @@ export default function FixturesPage() {
         Fixtures &amp; Schedule
       </h2>
 
-      {loading ? (
+      {!gate.visible ? (
+        <Card className="rounded-2xl shadow-md">
+          <CardContent className="py-10 text-center space-y-1">
+            <p className="text-base font-extrabold text-foreground">Fixtures publish on the day</p>
+            <p className="text-xs text-muted-foreground">
+              The match schedule will appear here shortly.
+            </p>
+          </CardContent>
+        </Card>
+      ) : loading ? (
         <div className="flex h-48 items-center justify-center">
           <div className="flex items-center gap-3 text-muted-foreground">
             <svg

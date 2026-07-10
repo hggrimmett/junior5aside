@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { usePublishGate } from "@/lib/use-publish-gate";
 import { Card, CardContent } from "@/components/ui/card";
 
 type TournamentColour = "Green" | "Red" | "Blue";
@@ -37,6 +38,7 @@ const COLOUR_ORDER: TournamentColour[] = ["Blue", "Red", "Green"];
 
 export default function CompetitionsPage() {
   const supabase = getSupabaseBrowserClient();
+  const gate = usePublishGate();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +158,16 @@ export default function CompetitionsPage() {
         Teams
       </h3>
 
-      {loading ? (
+      {!gate.visible ? (
+        <Card className="rounded-2xl shadow-md">
+          <CardContent className="py-8 text-center space-y-1">
+            <p className="text-base font-extrabold text-foreground">Coming soon</p>
+            <p className="text-xs text-muted-foreground">
+              Team lists and rosters will be published shortly.
+            </p>
+          </CardContent>
+        </Card>
+      ) : loading ? (
         <div className="flex h-32 items-center justify-center">
           <svg className="h-6 w-6 animate-spin text-muted-foreground" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

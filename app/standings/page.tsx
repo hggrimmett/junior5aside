@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { usePublishGate } from "@/lib/use-publish-gate";
 import {
   getLeagueTable,
   TeamStanding,
@@ -93,6 +94,7 @@ const TAB_STYLE: Record<
 
 export default function StandingsPage() {
   const supabase = getSupabaseBrowserClient();
+  const gate = usePublishGate();
 
   const [activeTab, setActiveTab] = useState<TournamentColour>("Green");
   const [tournaments, setTournaments] = useState<
@@ -310,6 +312,22 @@ export default function StandingsPage() {
   }, [table]);
 
   // ── Render ───────────────────────────────────────────────
+
+  if (!gate.visible) {
+    return (
+      <div className="px-4 py-5 space-y-4">
+        <h2 className="text-xl font-extrabold tracking-tight text-foreground">Live Scores &amp; Standings</h2>
+        <Card className="rounded-2xl shadow-md">
+          <CardContent className="py-10 text-center space-y-1">
+            <p className="text-base font-extrabold text-foreground">Standings appear once matches begin</p>
+            <p className="text-xs text-muted-foreground">
+              Live scores and league tables will be published when play starts.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-5 space-y-4">

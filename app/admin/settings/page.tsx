@@ -49,6 +49,9 @@ export default function AdminSettingsPage() {
   const [purgeConfirm, setPurgeConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
+
+  const [published, setPublished] = useState<boolean>(false);
+  const [publishSaving, setPublishSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,7 +106,7 @@ export default function AdminSettingsPage() {
       supabase
         .from("settings")
         .select("key, value")
-        .in("key", ["registration_deadline", "competition_start_time", "competition_lunch_start"]),
+        .in("key", ["registration_deadline", "competition_start_time", "competition_lunch_start", "teams_published"]),
     ]);
 
     setCounts({
@@ -119,6 +122,7 @@ export default function AdminSettingsPage() {
     if (start) setScheduleStart(utcIsoToLocalInput(start));
     const lunch = settingsMap.get("competition_lunch_start");
     if (lunch) setScheduleLunch(utcIsoToLocalInput(lunch));
+    setPublished(settingsMap.get("teams_published") === "true");
     setLoading(false);
   }, [supabase]);
 
@@ -307,6 +311,24 @@ export default function AdminSettingsPage() {
     showToast(`Downloaded ${rows.length - 1} rows.`);
   }
 
+  // ── Publish toggle ───────────────────────────────────────
+
+  async function handleTogglePublish() {
+    setPublishSaving(true);
+    setError(null);
+    const nextValue = published ? "false" : "true";
+    const { error: upErr } = await supabase
+      .from("settings")
+      .upsert({ key: "teams_published", value: nextValue }, { onConflict: "key" });
+    setPublishSaving(false);
+    if (upErr) {
+      setError(`Publish toggle failed: ${upErr.message}`);
+      return;
+    }
+    setPublished(nextValue === "true");
+    showToast(nextValue === "true" ? "Published — parents can now see teams." : "Unpublished — teams hidden from parents.");
+  }
+
   // ── Reset all match results (keep structure) ────────────
 
   async function handleResetResults() {
@@ -387,6 +409,45 @@ export default function AdminSettingsPage() {
           <StatCard label="Mentors" value={counts.mentors} loading={loading} href="/admin/mentors" />
           <StatCard label="Matches" value={counts.matches} loading={loading} />
         </div>
+
+        {/* ── Publish card ─────────────────────────────── */}
+        <Card className={`rounded-2xl shadow-md ${published ? "border-emerald-300" : "border-amber-300"}`}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">
+              Public visibility
+            </CardTitle>
+            <CardDescription className="text-sm">
+              Controls whether parents can see teams, fixtures, and standings.
+              Superadmins, coaches, and mentors always see everything.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            <Separator />
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm ${
+                published
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
+              <p className="font-bold">
+                {published ? "PUBLISHED — parents can see everything" : "HIDDEN — parents see 'Coming soon'"}
+              </p>
+            </div>
+            <Button
+              onClick={handleTogglePublish}
+              disabled={publishSaving}
+              className={`h-12 w-full rounded-xl font-bold gap-2 ${
+                published
+                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white"
+              }`}
+            >
+              {publishSaving ? <><Spinner />Saving...</> : (published ? "Unpublish (hide from parents)" : "Publish (make visible to parents)")}
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* ── Schedule card ────────────────────────────── */}
         <Card className="rounded-2xl shadow-md">
