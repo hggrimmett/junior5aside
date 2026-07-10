@@ -450,6 +450,19 @@ export default function TournamentsPage() {
       return;
     }
 
+    // Purge every existing team before rebuilding from this CSV.
+    // Players cascade to team_id=NULL and matches cascade to deletion (both FK ON DELETE).
+    // This stops vestigial teams from previous uploads accumulating.
+    const { error: purgeErr } = await supabase
+      .from("teams")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    if (purgeErr) {
+      setError(`Failed to clear existing teams before import: ${purgeErr.message}`);
+      setImporting(false);
+      return;
+    }
+
     // Fetch all players to match by first_name + last_name
     const { data: allPlayers } = await supabase
       .from("players")
@@ -748,6 +761,11 @@ export default function TournamentsPage() {
             <CardTitle className="text-base font-black">Team Allocation</CardTitle>
             <CardDescription className="text-sm">
               Step 1: Download entrants. Step 2: Fill in Competition &amp; Team Name columns. Step 3: Upload.
+              <br />
+              <span className="text-amber-700 font-semibold">
+                Upload replaces all existing teams and fixtures.
+              </span>{" "}
+              Players stay; unassigned rows will need reassignment via balancer.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

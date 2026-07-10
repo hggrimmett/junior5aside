@@ -50,6 +50,8 @@ export default function AdminSettingsPage() {
   const [purgeConfirm, setPurgeConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [purgingTeams, setPurgingTeams] = useState(false);
+  const [purgeTeamsConfirm, setPurgeTeamsConfirm] = useState(false);
 
   const [published, setPublished] = useState<boolean>(false);
   const [publishSaving, setPublishSaving] = useState(false);
@@ -335,6 +337,26 @@ export default function AdminSettingsPage() {
     showToast(nextValue === "true" ? "Published — parents can now see teams." : "Unpublished — teams hidden from parents.");
   }
 
+  // ── Purge all teams (keep players + profiles) ───────────
+
+  async function handlePurgeTeams() {
+    setPurgingTeams(true);
+    setError(null);
+    // Deleting a team cascades players.team_id → NULL via FK ON DELETE SET NULL.
+    const { error: delErr } = await supabase
+      .from("teams")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    setPurgingTeams(false);
+    if (delErr) {
+      setError(`Purge teams failed: ${delErr.message}`);
+      return;
+    }
+    setPurgeTeamsConfirm(false);
+    showToast("All teams purged. Players unassigned, profiles kept.");
+    fetchCounts();
+  }
+
   // ── Reset all match results (keep structure) ────────────
 
   async function handleResetResults() {
@@ -610,6 +632,61 @@ export default function AdminSettingsPage() {
             >
               {downloading ? <><Spinner />Preparing...</> : "Download full backup CSV"}
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* ── Purge teams card ─────────────────────────── */}
+        <Card className="rounded-2xl shadow-md border-amber-300">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black text-amber-800">
+              Purge all teams
+            </CardTitle>
+            <CardDescription className="text-sm">
+              Wipes every team row (including empty vestigial ones from previous
+              uploads). Players stay — they just fall back to Unassigned in the
+              balancer. Tournaments, parents, mentors, and coaches are untouched.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <Separator />
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed space-y-1">
+              <p className="font-bold">This action will:</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                <li>Delete every row in <strong>teams</strong></li>
+                <li>Set every player&apos;s <strong>team_id</strong> to NULL (via FK cascade)</li>
+                <li>Leave tournaments, players, parents, mentors, coaches untouched</li>
+                <li>Also drops any fixtures/matches (they reference teams)</li>
+              </ul>
+            </div>
+
+            {!purgeTeamsConfirm ? (
+              <Button
+                variant="outline"
+                onClick={() => setPurgeTeamsConfirm(true)}
+                className="h-12 w-full rounded-xl border-amber-400 text-amber-800 hover:bg-amber-50 font-bold"
+              >
+                Purge all teams...
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Button
+                  onClick={handlePurgeTeams}
+                  disabled={purgingTeams}
+                  className="h-12 w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2"
+                >
+                  {purgingTeams ? <><Spinner />Purging...</> : "Confirm purge"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setPurgeTeamsConfirm(false)}
+                  disabled={purgingTeams}
+                  className="h-12 w-full rounded-xl"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
