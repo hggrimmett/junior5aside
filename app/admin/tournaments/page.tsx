@@ -193,6 +193,8 @@ export default function TournamentsPage() {
 
   // ── Generate fixtures state ───────────────────────────────
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // ── Auth guard ────────────────────────────────────────────
 
@@ -361,6 +363,27 @@ export default function TournamentsPage() {
     setCreating(false);
     setDialogOpen(false);
     showToast("Tournament created.");
+  }
+
+  // ── Delete tournament ────────────────────────────────────
+
+  async function handleDeleteTournament(tournamentId: string) {
+    setDeletingId(tournamentId);
+    setError(null);
+    const { error: delErr } = await supabase.from("tournaments").delete().eq("id", tournamentId);
+    setDeletingId(null);
+    if (delErr) {
+      setError(`Delete failed: ${delErr.message}`);
+      return;
+    }
+    setTournaments((prev) => prev.filter((t) => t.id !== tournamentId));
+    setCardState((prev) => {
+      const next = { ...prev };
+      delete next[tournamentId];
+      return next;
+    });
+    setConfirmDeleteId(null);
+    showToast("Tournament deleted.");
   }
 
   // ── Export entrants ──────────────────────────────────────
@@ -897,6 +920,45 @@ export default function TournamentsPage() {
                       )}
                     </Button>
                   </CardFooter>
+
+                  <div className="px-4 pb-4">
+                    {confirmDeleteId !== tournament.id ? (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(tournament.id)}
+                        className="w-full rounded-lg border border-destructive/30 py-2 text-xs font-bold text-destructive hover:bg-destructive/5"
+                      >
+                        Delete tournament
+                      </button>
+                    ) : (
+                      <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-2">
+                        <p className="text-[11px] leading-snug text-destructive">
+                          Deleting <strong>{tournament.name}</strong> will also remove all its teams,
+                          fixtures, and match events. Players stay but lose their team assignment.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => handleDeleteTournament(tournament.id)}
+                            disabled={deletingId === tournament.id}
+                            className="h-9 flex-1 rounded-lg text-xs font-bold"
+                          >
+                            {deletingId === tournament.id ? "Deleting..." : "Yes, delete"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setConfirmDeleteId(null)}
+                            disabled={deletingId === tournament.id}
+                            className="h-9 flex-1 rounded-lg text-xs"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   </>)}
                 </Card>
 
