@@ -197,6 +197,22 @@ export default function ScorePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lockedByOther, setLockedByOther] = useState<string | null>(null); // name of person who locked it
+  const [lockedAt, setLockedAt] = useState<string | null>(null); // when the current lock was last active
+  const [takingOver, setTakingOver] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    setIsOffline(!navigator.onLine);
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
   const [resetting, setResetting] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [showResetDialog, setShowResetDialog] = useState(false);
@@ -296,6 +312,7 @@ export default function ScorePage() {
       if (m.locked_by && m.locked_by !== user.id) {
         // Someone else is scoring this match
         setLockedByOther(m.locked_by_name ?? "Another user");
+        setLockedAt(m.locked_at ?? null);
         setMatch(m);
         setLoading(false);
         return;
@@ -540,6 +557,12 @@ export default function ScorePage() {
             e.id === optimisticId ? (inserted as MatchEvent) : e
           )
         );
+        // Heartbeat: bump locked_at so replacement scorers can detect a
+        // stale/abandoned session. Fire-and-forget.
+        void supabase
+          .from("matches")
+          .update({ locked_at: new Date().toISOString() })
+          .eq("id", matchId);
       }
 
       setSaving(false);
@@ -759,6 +782,32 @@ export default function ScorePage() {
   // ── Locked by someone else ─────────────────────────────────────────────────
 
   if (lockedByOther) {
+    const STALE_MIN = 5;
+    const minsSince = lockedAt ? Math.floor((Date.now() - new Date(lockedAt).getTime()) / 60000) : null;
+    const isStale = minsSince !== null && minsSince >= STALE_MIN;
+
+    async function handleTakeOver() {
+      setTakingOver(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setTakingOver(false); return; }
+      const { data: profile } = await supabase
+        .from("profiles").select("full_name, role").eq("id", user.id).single<{ full_name: string; role: string }>();
+      if (!profile || (profile.role !== "superadmin" && profile.role !== "coach" && profile.role !== "mentor")) {
+        setTakingOver(false);
+        return;
+      }
+      const { error: updateErr } = await supabase.from("matches").update({
+        locked_by: user.id,
+        locked_by_name: profile.full_name,
+        locked_at: new Date().toISOString(),
+      }).eq("id", matchId);
+      if (updateErr) {
+        setTakingOver(false);
+        return;
+      }
+      window.location.reload();
+    }
+
     return (
       <div className="mx-auto max-w-md min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center gap-4">
         <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
@@ -770,6 +819,20 @@ export default function ScorePage() {
         <p className="text-sm text-muted-foreground">
           <span className="font-bold text-foreground">{lockedByOther}</span> is currently scoring this match.
         </p>
+        {minsSince !== null && (
+          <p className={`text-xs font-semibold ${isStale ? "text-destructive" : "text-muted-foreground"}`}>
+            {isStale ? `⚠ No scoring activity for ${minsSince} min` : `Last active ${minsSince} min ago`}
+          </p>
+        )}
+        {isStale && (
+          <button
+            onClick={handleTakeOver}
+            disabled={takingOver}
+            className="h-12 px-8 rounded-2xl bg-destructive text-white font-bold active:scale-[0.98] transition-transform shadow-md disabled:opacity-60"
+          >
+            {takingOver ? "Taking over..." : "Take over scoring"}
+          </button>
+        )}
         <button
           onClick={() => window.location.href = "/fixtures"}
           className="h-12 px-8 rounded-2xl bg-cricket text-white font-bold active:scale-[0.98] transition-transform shadow-md"
@@ -1271,6 +1334,13 @@ export default function ScorePage() {
 
   return (
     <div className="mx-auto max-w-md h-[100dvh] bg-background flex flex-col overflow-hidden">
+      {/* Offline banner */}
+      {isOffline && (
+        <div className="shrink-0 bg-amber-500 text-white text-xs font-bold px-4 py-2 text-center">
+          ⚠ Offline — balls may fail to save until you reconnect.
+        </div>
+      )}
+
       {/* Error toast */}
       {error && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-lg">
