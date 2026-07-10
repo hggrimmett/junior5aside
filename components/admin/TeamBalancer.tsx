@@ -232,7 +232,9 @@ function TeamDropCard({
             onValueChange={(v) => onMentorChange(team.id, v || null)}
           >
             <SelectTrigger className={`h-10 text-xs ${!hasMentor ? "border-amber-400 bg-amber-50" : ""}`}>
-              <SelectValue placeholder="Assign mentor..." />
+              {team.mentor_id
+                ? (mentors.find((m) => m.id === team.mentor_id)?.full_name ?? "Unknown mentor")
+                : <SelectValue placeholder="Assign mentor..." />}
             </SelectTrigger>
             <SelectContent>
               {mentors.map((m) => {
