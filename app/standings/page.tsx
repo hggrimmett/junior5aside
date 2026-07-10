@@ -210,20 +210,21 @@ export default function StandingsPage() {
               }
             }
 
-            // Collect all relevant player IDs
-            const allPlayerIds = Array.from(
-              new Set([...Object.keys(runMap), ...Object.keys(wicketMap)])
-            );
-
-            // Fetch player names
-            const playersRes = await supabase
-              .from("players")
-              .select("id, first_name, last_name")
-              .in("id", allPlayerIds);
-
+            // Fetch player names via the public rosters endpoint — bypasses
+            // parent RLS so we can display everyone's names in the top-N lists.
             const playerNameMap: Record<string, string> = {};
-            for (const p of playersRes.data ?? []) {
-              playerNameMap[p.id] = `${p.first_name} ${p.last_name}`.trim();
+            try {
+              const rostersRes = await fetch("/api/public/rosters");
+              if (rostersRes.ok) {
+                const rosters = (await rostersRes.json()) as {
+                  players: Array<{ id: string; first_name: string; last_name: string }>;
+                };
+                for (const p of rosters.players) {
+                  playerNameMap[p.id] = `${p.first_name} ${p.last_name}`.trim();
+                }
+              }
+            } catch {
+              // fall through — names will fall back to id
             }
 
             // Build sorted top-3 batters

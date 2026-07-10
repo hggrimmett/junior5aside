@@ -45,48 +45,38 @@ export default function CompetitionsPage() {
 
   useEffect(() => {
     (async () => {
-      const [tRes, teamsRes, playersRes] = await Promise.all([
-        supabase.from("tournaments").select("id, name, colour").returns<Tournament[]>(),
-        supabase
-          .from("teams")
-          .select("id, name, tournament_id, mentor:profiles!mentor_id(full_name)"),
-        supabase
-          .from("players")
-          .select("first_name, last_name, age_group, team_id")
-          .not("team_id", "is", null),
-      ]);
-
-      const teamsRaw = (teamsRes.data ?? []) as Array<{
-        id: string;
-        name: string;
-        tournament_id: string;
-        mentor: { full_name: string } | { full_name: string }[] | null;
-      }>;
+      // Uses server-side admin client to bypass parent RLS on profiles/players
+      const res = await fetch("/api/public/rosters");
+      if (!res.ok) {
+        setLoading(false);
+        return;
+      }
+      const payload = (await res.json()) as {
+        tournaments: Tournament[];
+        teams: Array<{ id: string; name: string; tournament_id: string; mentor_name: string | null }>;
+        players: Array<{ id: string; first_name: string; last_name: string; age_group: string; team_id: string | null }>;
+      };
 
       const playersByTeam = new Map<string, Player[]>();
-      for (const p of (playersRes.data ?? []) as Array<{
-        first_name: string; last_name: string; age_group: string; team_id: string;
-      }>) {
+      for (const p of payload.players) {
+        if (!p.team_id) continue;
         const arr = playersByTeam.get(p.team_id) ?? [];
         arr.push({ first_name: p.first_name, last_name: p.last_name, age_group: p.age_group });
         playersByTeam.set(p.team_id, arr);
       }
 
-      const teamsBuilt: Team[] = teamsRaw.map((t) => {
-        const mentor = Array.isArray(t.mentor) ? t.mentor[0] : t.mentor;
-        return {
-          id: t.id,
-          name: t.name,
-          tournament_id: t.tournament_id,
-          mentor_name: mentor?.full_name ?? null,
-          players: (playersByTeam.get(t.id) ?? []).sort((a, b) =>
-            (a.first_name + a.last_name).localeCompare(b.first_name + b.last_name),
-          ),
-        };
-      });
+      const teamsBuilt: Team[] = payload.teams.map((t) => ({
+        id: t.id,
+        name: t.name,
+        tournament_id: t.tournament_id,
+        mentor_name: t.mentor_name,
+        players: (playersByTeam.get(t.id) ?? []).sort((a, b) =>
+          (a.first_name + a.last_name).localeCompare(b.first_name + b.last_name),
+        ),
+      }));
       teamsBuilt.sort((a, b) => a.name.localeCompare(b.name));
 
-      setTournaments(tRes.data ?? []);
+      setTournaments(payload.tournaments);
       setTeams(teamsBuilt);
       setLoading(false);
     })();
