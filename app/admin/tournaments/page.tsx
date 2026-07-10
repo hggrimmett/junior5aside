@@ -321,7 +321,7 @@ export default function TournamentsPage() {
     setCreating(true);
     setCreateError(null);
 
-    const { data, error: insertErr } = await supabase
+    const { data, error: insertErr, status } = await supabase
       .from("tournaments")
       .insert({
         name: newName.trim(),
@@ -329,22 +329,30 @@ export default function TournamentsPage() {
         max_team_size: newMaxSize,
       })
       .select("id, name, colour, max_team_size, start_time")
-      .returns<Tournament[]>()
-      .single();
+      .single<Tournament>();
 
     if (insertErr) {
-      setCreateError(insertErr.message);
+      // Log for browser console debugging
+      console.error("Tournament create failed:", insertErr, "status:", status);
+      setCreateError(`${insertErr.message} (status ${status})`);
       setCreating(false);
       return;
     }
 
-    if (data) {
-      setTournaments((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-      setCardState((prev) => ({
-        ...prev,
-        [data.id]: { pendingSize: data.max_team_size, saving: false },
-      }));
+    if (!data) {
+      console.error("Tournament create returned no row. status:", status);
+      setCreateError(
+        `Insert returned no row (status ${status}). This usually means RLS blocked reading it back — check that your session is still logged in as a superadmin.`,
+      );
+      setCreating(false);
+      return;
     }
+
+    setTournaments((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setCardState((prev) => ({
+      ...prev,
+      [data.id]: { pendingSize: data.max_team_size, saving: false },
+    }));
 
     // Reset dialog
     setNewName("");
