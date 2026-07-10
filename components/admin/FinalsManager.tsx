@@ -339,14 +339,17 @@ export default function FinalsManager() {
                 <p className="text-sm text-muted-foreground">
                   No tournament found for this age group.
                 </p>
-              ) : !hasEnoughTeams ? (
-                <p className="text-sm text-muted-foreground">
-                  Not enough completed matches to determine finalists.
-                </p>
               ) : (
                 <>
-                  {/* Grand Final matchup — only if scheduled */}
-                  {scheduleGrandFinal[group] && (
+                  {!hasEnoughTeams && (
+                    <div className="rounded-xl border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      Finalists will appear here once the round-robin has produced standings.
+                      You can still set toggles and the schedule now.
+                    </div>
+                  )}
+
+                  {/* Grand Final matchup — only if scheduled AND standings exist */}
+                  {scheduleGrandFinal[group] && hasEnoughTeams && (
                     <MatchupCard
                       label="Grand Final"
                       teamA={teamName(g.standings[0].teamId)}
@@ -437,14 +440,16 @@ export default function FinalsManager() {
                         </div>
                         <Button
                           onClick={() => createFinals(group)}
-                          disabled={isBusy}
-                          className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold"
+                          disabled={isBusy || !hasEnoughTeams}
+                          className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold disabled:opacity-50"
                         >
                           {isBusy ? (
                             <span className="flex items-center gap-2">
                               <Spinner />
                               Creating...
                             </span>
+                          ) : !hasEnoughTeams ? (
+                            "Waiting for standings..."
                           ) : (
                             schedulePlateFinal[group] && hasPlateTeams
                               ? "Create Plate + Grand Final"
