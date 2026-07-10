@@ -47,6 +47,8 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [purging, setPurging] = useState(false);
   const [purgeConfirm, setPurgeConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -305,6 +307,49 @@ export default function AdminSettingsPage() {
     showToast(`Downloaded ${rows.length - 1} rows.`);
   }
 
+  // ── Reset all match results (keep structure) ────────────
+
+  async function handleResetResults() {
+    setResetting(true);
+    setError(null);
+
+    // Wipe every match_event
+    const { error: eventsErr } = await supabase
+      .from("match_events")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    if (eventsErr) {
+      setError(`Reset failed (events): ${eventsErr.message}`);
+      setResetting(false);
+      return;
+    }
+
+    // Zero every match: scores/wickets/status back to 0, and drop any lock
+    const { error: matchesErr } = await supabase
+      .from("matches")
+      .update({
+        score_a: 0,
+        score_b: 0,
+        wickets_a: 0,
+        wickets_b: 0,
+        status: false,
+        locked_by: null,
+        locked_by_name: null,
+        locked_at: null,
+      })
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    if (matchesErr) {
+      setError(`Reset failed (matches): ${matchesErr.message}`);
+      setResetting(false);
+      return;
+    }
+
+    setResetting(false);
+    setResetConfirm(false);
+    showToast("Results reset. Fixtures and teams kept.");
+    fetchCounts();
+  }
+
   // ── Toast helper ─────────────────────────────────────────
 
   function showToast(msg: string) {
@@ -497,6 +542,61 @@ export default function AdminSettingsPage() {
             >
               {downloading ? <><Spinner />Preparing...</> : "Download full backup CSV"}
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* ── Reset match results card ──────────────────── */}
+        <Card className="rounded-2xl shadow-md border-amber-300">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black text-amber-800">
+              Reset match results
+            </CardTitle>
+            <CardDescription className="text-sm">
+              Wipes every score, wicket, and ball-by-ball event. Keeps tournaments,
+              teams, mentors, players, and the fixture list. Use this after test
+              scoring runs to get a clean slate.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <Separator />
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed space-y-1">
+              <p className="font-bold">This action will:</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                <li>Delete every row in <strong>match_events</strong></li>
+                <li>Reset every match&apos;s score/wickets to 0, status back to unplayed</li>
+                <li>Clear any live scorer locks</li>
+                <li>Leave tournaments, teams, mentors, players untouched</li>
+              </ul>
+            </div>
+
+            {!resetConfirm ? (
+              <Button
+                variant="outline"
+                onClick={() => setResetConfirm(true)}
+                className="h-12 w-full rounded-xl border-amber-400 text-amber-800 hover:bg-amber-50 font-bold"
+              >
+                Reset all match results...
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Button
+                  onClick={handleResetResults}
+                  disabled={resetting}
+                  className="h-12 w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2"
+                >
+                  {resetting ? <><Spinner />Resetting...</> : "Confirm reset"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setResetConfirm(false)}
+                  disabled={resetting}
+                  className="h-12 w-full rounded-xl"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
