@@ -88,6 +88,16 @@ export default function FinalsManager() {
     Red: "",
     Blue: "",
   });
+  const [scheduleGrandFinal, setScheduleGrandFinal] = useState<Record<TournamentColour, boolean>>({
+    Green: true,
+    Red: true,
+    Blue: true,
+  });
+  const [schedulePlateFinal, setSchedulePlateFinal] = useState<Record<TournamentColour, boolean>>({
+    Green: true,
+    Red: true,
+    Blue: true,
+  });
 
   // ── Fetch data ───────────────────────────────────────────
 
@@ -165,21 +175,29 @@ export default function FinalsManager() {
   async function createFinals(group: TournamentColour) {
     const g = groups[group];
     if (!g.tournament || g.standings.length < 2) return;
+    if (!scheduleGrandFinal[group]) return; // Master toggle off — nothing to create.
 
     setBusyGroup(group);
     setError(null);
 
-    const tournamentId = g.tournament.id;
-    // Admin picks the plate start time; Final runs 25 min after (main event closes the day).
+    const wantPlate = schedulePlateFinal[group] && g.standings.length >= 4;
     const localInput = plateStart[group];
+
+    // When plate is scheduled, the datetime is the plate start; Final runs +25 min.
+    // When plate is off, the datetime is the Final start.
     let plateIso: string | null = null;
     let finalIso: string | null = null;
     if (localInput) {
-      const plateMs = new Date(localInput).getTime();
-      plateIso = new Date(plateMs).toISOString();
-      finalIso = new Date(plateMs + 25 * 60_000).toISOString();
+      const startMs = new Date(localInput).getTime();
+      if (wantPlate) {
+        plateIso = new Date(startMs).toISOString();
+        finalIso = new Date(startMs + 25 * 60_000).toISOString();
+      } else {
+        finalIso = new Date(startMs).toISOString();
+      }
     }
 
+    const tournamentId = g.tournament.id;
     const rows: {
       tournament_id: string;
       team_a_id: string;
@@ -193,8 +211,7 @@ export default function FinalsManager() {
       scheduled_time: string | null;
     }[] = [];
 
-    // Plate Final: 3rd vs 4th (runs first, if enough teams)
-    if (g.standings.length >= 4) {
+    if (wantPlate) {
       rows.push({
         tournament_id: tournamentId,
         team_a_id: g.standings[2].teamId,
@@ -209,7 +226,7 @@ export default function FinalsManager() {
       });
     }
 
-    // Final: 1st vs 2nd (runs after plate)
+    // Grand Final: 1st vs 2nd
     rows.push({
       tournament_id: tournamentId,
       team_a_id: g.standings[0].teamId,
@@ -236,11 +253,15 @@ export default function FinalsManager() {
       [group]: {
         ...prev[group],
         finalCreated: true,
-        plateCreated: g.standings.length >= 4,
+        plateCreated: schedulePlateFinal[group] && g.standings.length >= 4,
       },
     }));
 
-    setToast(`${group} finals created`);
+    setToast(
+      schedulePlateFinal[group] && g.standings.length >= 4
+        ? `${group} finals created (Plate + Final)`
+        : `${group} Grand Final created`,
+    );
     setTimeout(() => setToast(null), 2500);
     setBusyGroup(null);
   }
@@ -324,18 +345,20 @@ export default function FinalsManager() {
                 </p>
               ) : (
                 <>
-                  {/* Final: 1st vs 2nd */}
-                  <MatchupCard
-                    label="Final"
-                    teamA={teamName(g.standings[0].teamId)}
-                    teamB={teamName(g.standings[1].teamId)}
-                    rankA="1st"
-                    rankB="2nd"
-                    accentClass={s.matchupAccent}
-                  />
+                  {/* Grand Final matchup — only if scheduled */}
+                  {scheduleGrandFinal[group] && (
+                    <MatchupCard
+                      label="Grand Final"
+                      teamA={teamName(g.standings[0].teamId)}
+                      teamB={teamName(g.standings[1].teamId)}
+                      rankA="1st"
+                      rankB="2nd"
+                      accentClass={s.matchupAccent}
+                    />
+                  )}
 
-                  {/* Plate Final: 3rd vs 4th */}
-                  {hasPlateTeams ? (
+                  {/* Plate Final matchup — only if both scheduled and enough teams */}
+                  {scheduleGrandFinal[group] && schedulePlateFinal[group] && hasPlateTeams && (
                     <MatchupCard
                       label="Plate Final"
                       teamA={teamName(g.standings[2].teamId)}
@@ -344,47 +367,96 @@ export default function FinalsManager() {
                       rankB="4th"
                       accentClass={s.matchupAccent}
                     />
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Not enough teams for a plate final.
-                    </p>
+                  )}
+
+                  {/* Toggles */}
+                  {!g.finalCreated && (
+                    <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
+                      <label className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold uppercase tracking-wider">Schedule Grand Final</p>
+                          <p className="text-[11px] text-muted-foreground leading-snug">
+                            Off: 1st and 2nd decided by RR points.
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={scheduleGrandFinal[group]}
+                          onChange={(e) =>
+                            setScheduleGrandFinal((prev) => ({ ...prev, [group]: e.target.checked }))
+                          }
+                          className="h-5 w-5 shrink-0 accent-cricket"
+                        />
+                      </label>
+                      <label className={`flex items-center justify-between gap-3 ${!scheduleGrandFinal[group] || !hasPlateTeams ? "opacity-40" : ""}`}>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold uppercase tracking-wider">Schedule Plate Final</p>
+                          <p className="text-[11px] text-muted-foreground leading-snug">
+                            {hasPlateTeams
+                              ? "Off: 3rd and 4th decided by RR points."
+                              : "Not enough teams (need 4+)."}
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={schedulePlateFinal[group] && scheduleGrandFinal[group] && hasPlateTeams}
+                          disabled={!scheduleGrandFinal[group] || !hasPlateTeams}
+                          onChange={(e) =>
+                            setSchedulePlateFinal((prev) => ({ ...prev, [group]: e.target.checked }))
+                          }
+                          className="h-5 w-5 shrink-0 accent-cricket"
+                        />
+                      </label>
+                    </div>
                   )}
 
                   {/* Schedule input + Create button */}
                   {!g.finalCreated ? (
-                    <div className="space-y-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`${group}-plate-start`} className="text-xs font-bold uppercase tracking-wider">
-                          Plate final start time
-                        </Label>
-                        <Input
-                          id={`${group}-plate-start`}
-                          type="datetime-local"
-                          value={plateStart[group]}
-                          onChange={(e) =>
-                            setPlateStart((prev) => ({ ...prev, [group]: e.target.value }))
-                          }
-                          className="h-11 rounded-xl"
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Main Final runs 25 min after the Plate.
-                        </p>
+                    scheduleGrandFinal[group] ? (
+                      <div className="space-y-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`${group}-plate-start`} className="text-xs font-bold uppercase tracking-wider">
+                            {schedulePlateFinal[group] && hasPlateTeams
+                              ? "Plate final start time"
+                              : "Grand final start time"}
+                          </Label>
+                          <Input
+                            id={`${group}-plate-start`}
+                            type="datetime-local"
+                            value={plateStart[group]}
+                            onChange={(e) =>
+                              setPlateStart((prev) => ({ ...prev, [group]: e.target.value }))
+                            }
+                            className="h-11 rounded-xl"
+                          />
+                          {schedulePlateFinal[group] && hasPlateTeams && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Grand Final runs 25 min after the Plate.
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => createFinals(group)}
+                          disabled={isBusy}
+                          className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold"
+                        >
+                          {isBusy ? (
+                            <span className="flex items-center gap-2">
+                              <Spinner />
+                              Creating...
+                            </span>
+                          ) : (
+                            schedulePlateFinal[group] && hasPlateTeams
+                              ? "Create Plate + Grand Final"
+                              : "Create Grand Final"
+                          )}
+                        </Button>
                       </div>
-                      <Button
-                        onClick={() => createFinals(group)}
-                        disabled={isBusy}
-                        className="h-12 w-full rounded-xl bg-[#114232] hover:bg-[#1a5c44] text-white font-bold"
-                      >
-                        {isBusy ? (
-                          <span className="flex items-center gap-2">
-                            <Spinner />
-                            Creating...
-                          </span>
-                        ) : (
-                          "Create Final Matches"
-                        )}
-                      </Button>
-                    </div>
+                    ) : (
+                      <div className="rounded-xl bg-muted/40 border px-4 py-3 text-center text-xs text-muted-foreground">
+                        No finals scheduled — final standings will be decided by round-robin points.
+                      </div>
+                    )
                   ) : (
                     <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-center">
                       <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
