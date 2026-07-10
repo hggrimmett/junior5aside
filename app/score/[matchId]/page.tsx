@@ -224,6 +224,10 @@ export default function ScorePage() {
   const [phase, setPhase] = useState<Phase>("team_a_setup");
   const [transition, setTransition] = useState<TransitionType>(null);
   const [pendingTransition, setPendingTransition] = useState<TransitionType>(null);
+  // Remembers the event count at which the end-of-over modal was cancelled,
+  // so the auto-detector doesn't immediately re-open it while nothing has
+  // changed about the ball history.
+  const [cancelledAtEventCount, setCancelledAtEventCount] = useState<number | null>(null);
 
   // Team A innings selections
   const [aPair1, setAPair1] = useState<string[]>([]);
@@ -461,6 +465,9 @@ export default function ScorePage() {
     if (!currentBattingTeamId) return;
     // Don't fire the modal if we're already in a transition or already prompting.
     if (transition || pendingTransition) return;
+    // Don't re-open the modal while the umpire has cancelled and no ball
+    // has been added or undone since. It'll re-arm on the next event change.
+    if (cancelledAtEventCount === events.length) return;
 
     const state = deriveInningsState(events, currentBattingTeamId);
 
@@ -489,7 +496,7 @@ export default function ScorePage() {
         setPendingTransition("over_3_done");
       }
     }
-  }, [events, phase, currentBattingTeamId, aBowlers, bBowlers, transition, pendingTransition]);
+  }, [events, phase, currentBattingTeamId, aBowlers, bBowlers, transition, pendingTransition, cancelledAtEventCount]);
 
   // ── Insert event ───────────────────────────────────────────────────────────
 
@@ -1509,7 +1516,10 @@ export default function ScorePage() {
               Continue
             </button>
             <button
-              onClick={() => setPendingTransition(null)}
+              onClick={() => {
+                setCancelledAtEventCount(events.length);
+                setPendingTransition(null);
+              }}
               className="w-full h-12 rounded-xl border-2 border-border text-sm font-bold text-muted-foreground active:scale-[0.98] transition-transform"
             >
               Cancel
