@@ -18,7 +18,7 @@ export async function sendParentWelcomeEmail(
   args: SendWelcomeArgs
 ): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromAddress = process.env.RESEND_FROM ?? "Junior 5-a-Side <noreply@boundarylive.app>";
+  const fromAddress = process.env.RESEND_FROM ?? "Junior 5-a-Side <noreply@junior.boundarylive.app>";
   const whatsappLink = process.env.WHATSAPP_GROUP_URL ?? "";
 
   // Don't fail registration if the email side isn't configured yet.
