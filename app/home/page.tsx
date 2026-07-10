@@ -32,7 +32,37 @@ interface Player {
 interface ParentContact {
   id: string;
   full_name: string;
-  mobile_number: string;
+  mobile_number: string | null;
+}
+
+interface MentorMatch {
+  id: string;
+  opponent_name: string;
+  scheduled_time: string | null;
+  status: boolean;
+  is_live: boolean;
+  my_score: number | null;
+  my_wickets: number | null;
+  opponent_score: number | null;
+  opponent_wickets: number | null;
+  match_type: string | null;
+}
+
+interface Tournament {
+  id: string;
+  name: string;
+  colour: "Blue" | "Red" | "Green";
+}
+
+const TOURNAMENT_STYLE: Record<string, { dot: string; text: string }> = {
+  Blue: { dot: "bg-blue-500", text: "text-blue-700" },
+  Red: { dot: "bg-red-500", text: "text-red-700" },
+  Green: { dot: "bg-green-500", text: "text-green-700" },
+};
+
+function formatTime(iso: string | null): string {
+  if (!iso) return "TBC";
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function HomePage() {
@@ -44,7 +74,8 @@ export default function HomePage() {
   // Mentor roster state
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
   const [parentContacts, setParentContacts] = useState<ParentContact[]>([]);
-  const [pendingMatchId, setPendingMatchId] = useState<string | null | "none">("none");
+  const [mentorMatches, setMentorMatches] = useState<MentorMatch[]>([]);
+  const [mentorTournament, setMentorTournament] = useState<Tournament | null>(null);
 
   // Mentor profile edit
   const [fullName, setFullName] = useState("");
@@ -68,53 +99,28 @@ export default function HomePage() {
         setFullName(data.full_name);
         setMobile(data.mobile_number);
 
-        // If mentor, fetch their team and related data
+        // If mentor, fetch their team + roster + matches via the mentor context endpoint
+        // (bypasses RLS via admin client server-side).
         if (data.role === "mentor") {
-          const { data: team } = await supabase
-            .from("teams")
-            .select("id, name")
-            .eq("mentor_id", user.id)
-            .limit(1)
-            .single<Team>();
-          setMentorTeam(team ?? null);
-
-          if (team) {
-            // Fetch team players
-            const { data: players } = await supabase
-              .from("players")
-              .select("id, first_name, last_name, age_group, avatar_url, parent_id")
-              .eq("team_id", team.id);
-
-            if (players && players.length > 0) {
-              setTeamPlayers(players);
-
-              // Fetch parent contacts for those players
-              const parentIds = players
-                .map((p: Player) => p.parent_id)
-                .filter((id): id is string => id !== null);
-
-              if (parentIds.length > 0) {
-                const { data: contacts } = await supabase
-                  .from("profiles")
-                  .select("id, full_name, mobile_number")
-                  .in("id", parentIds);
-                setParentContacts(contacts ?? []);
-              }
+          const ctxRes = await fetch("/api/mentor/team-context");
+          if (ctxRes.ok) {
+            const ctx = (await ctxRes.json()) as {
+              team: { id: string; name: string; tournament: Tournament | null } | null;
+              players: Player[];
+              parents: ParentContact[];
+              matches: MentorMatch[];
+            };
+            if (ctx.team) {
+              setMentorTeam({ id: ctx.team.id, name: ctx.team.name });
+              setMentorTournament(ctx.team.tournament ?? null);
+              setTeamPlayers(ctx.players);
+              setParentContacts(ctx.parents);
+              setMentorMatches(ctx.matches);
+            } else {
+              setMentorTeam(null);
             }
-
-            // Fetch first pending match for this team
-            const { data: match } = await supabase
-              .from("matches")
-              .select("id")
-              .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`)
-              .eq("status", false)
-              .order("scheduled_time", { ascending: true })
-              .limit(1)
-              .single();
-
-            setPendingMatchId(match ? match.id : null);
           } else {
-            setPendingMatchId(null);
+            setMentorTeam(null);
           }
         }
       }
@@ -152,7 +158,7 @@ export default function HomePage() {
   // ── Mentor view ──────────────────────────────────────────
 
   if (isMentor) {
-    const teamId = mentorTeam && mentorTeam !== "loading" ? mentorTeam.id : null;
+    const tStyle = mentorTournament ? TOURNAMENT_STYLE[mentorTournament.colour] : null;
 
     return (
       <div className="px-4 py-5 space-y-5">
@@ -169,32 +175,89 @@ export default function HomePage() {
             {mentorTeam === "loading" ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : mentorTeam ? (
-              <p className="text-2xl font-extrabold text-foreground">{mentorTeam.name}</p>
+              <div className="space-y-1">
+                <p className="text-2xl font-extrabold text-foreground">{mentorTeam.name}</p>
+                {mentorTournament && tStyle && (
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tStyle.dot}`} />
+                    <p className={`text-sm font-bold ${tStyle.text}`}>{mentorTournament.name}</p>
+                  </div>
+                )}
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">Not assigned yet</p>
             )}
           </CardContent>
         </Card>
 
-        {/* Live Scorer button */}
-        {teamId && (
-          pendingMatchId === "none" ? (
-            /* still loading match */ null
-          ) : pendingMatchId ? (
-            <Link href={`/score/${pendingMatchId}`}>
-              <button className="inline-flex h-16 w-full items-center justify-center rounded-2xl bg-cricket px-6 text-lg font-black text-cricket-foreground shadow-md transition-opacity active:opacity-80">
-                Live Scorer
-              </button>
-            </Link>
-          ) : (
-            <button
-              disabled
-              className="inline-flex h-16 w-full items-center justify-center rounded-2xl bg-muted px-6 text-lg font-black text-muted-foreground shadow-md cursor-not-allowed"
-            >
-              No matches scheduled
-            </button>
-          )
+        {/* My Matches */}
+        {mentorTeam && mentorTeam !== "loading" && (
+          <Card className="rounded-2xl shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-black">My Matches</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {mentorMatches.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No matches scheduled yet.</p>
+              ) : (
+                mentorMatches.map((m) => {
+                  const label = m.match_type === "final" ? "Final" : m.match_type === "plate_final" ? "Plate" : null;
+                  return (
+                    <Link key={m.id} href={m.status ? `/match/${m.id}` : `/score/${m.id}`}>
+                      <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 active:bg-muted/50 transition-colors">
+                        <div className="flex flex-col items-center shrink-0 w-14">
+                          <p className="text-xs font-bold tabular-nums text-foreground leading-tight">
+                            {formatTime(m.scheduled_time)}
+                          </p>
+                          {label && <p className="text-[9px] font-bold text-cricket uppercase tracking-wider mt-0.5">{label}</p>}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-foreground truncate">
+                            vs {m.opponent_name}
+                          </p>
+                          {m.status ? (
+                            <p className="text-xs text-muted-foreground">
+                              {m.my_score}/{m.my_wickets} — {m.opponent_score}/{m.opponent_wickets}
+                            </p>
+                          ) : m.is_live ? (
+                            <p className="text-xs font-bold text-red-600">🔴 LIVE now</p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Upcoming</p>
+                          )}
+                        </div>
+                        <Badge
+                          className={
+                            m.status
+                              ? "bg-emerald-100 text-emerald-800 border-0 text-[10px] font-bold"
+                              : m.is_live
+                              ? "bg-red-100 text-red-800 border-0 text-[10px] font-bold"
+                              : "bg-cricket text-white border-0 text-[10px] font-bold"
+                          }
+                        >
+                          {m.status ? "DONE" : m.is_live ? "SCORE" : "SCORE"}
+                        </Badge>
+                      </div>
+                    </Link>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
         )}
+
+        {/* Quick links */}
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/fixtures">
+            <button className="w-full h-12 rounded-xl border-2 border-cricket bg-background text-sm font-bold text-cricket active:scale-[0.98] transition-transform">
+              All Fixtures
+            </button>
+          </Link>
+          <Link href="/standings">
+            <button className="w-full h-12 rounded-xl border-2 border-cricket bg-background text-sm font-bold text-cricket active:scale-[0.98] transition-transform">
+              Standings
+            </button>
+          </Link>
+        </div>
 
         {/* Team Roster */}
         {teamPlayers.length > 0 && (
