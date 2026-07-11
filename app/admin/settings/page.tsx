@@ -578,9 +578,21 @@ export default function AdminSettingsPage() {
       return;
     }
 
+    // Also reset finalist team selections to TBD — since RR has been
+    // wiped, whichever teams were picked no longer make sense.
+    const { error: finalsErr } = await supabase
+      .from("matches")
+      .update({ team_a_id: null, team_b_id: null })
+      .in("match_type", ["final", "plate_final"]);
+    if (finalsErr) {
+      setError(`Reset failed (finals): ${finalsErr.message}`);
+      setResetting(false);
+      return;
+    }
+
     setResetting(false);
     setResetConfirm(false);
-    showToast("Results reset. Fixtures and teams kept.");
+    showToast("Results reset. Fixtures + teams kept. Finalists cleared.");
     fetchCounts();
   }
 

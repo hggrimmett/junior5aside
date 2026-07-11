@@ -550,7 +550,7 @@ export default function FinalsManager() {
                             <Select
                               value={placeholderMatches[group].plate!.team_a_id ?? ""}
                               onValueChange={(v) =>
-                                updatePlaceholderTeam(placeholderMatches[group].plate!.id, "team_a_id", v || null)
+                                updatePlaceholderTeam(placeholderMatches[group].plate!.id, "team_a_id", !v || v === "__tbd__" ? null : v)
                               }
                             >
                               <SelectTrigger className="h-9 text-xs rounded-lg">
@@ -559,6 +559,7 @@ export default function FinalsManager() {
                                   : <SelectValue placeholder="Team A" />}
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__tbd__">— TBD —</SelectItem>
                                 {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
                                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                                 ))}
@@ -567,7 +568,7 @@ export default function FinalsManager() {
                             <Select
                               value={placeholderMatches[group].plate!.team_b_id ?? ""}
                               onValueChange={(v) =>
-                                updatePlaceholderTeam(placeholderMatches[group].plate!.id, "team_b_id", v || null)
+                                updatePlaceholderTeam(placeholderMatches[group].plate!.id, "team_b_id", !v || v === "__tbd__" ? null : v)
                               }
                             >
                               <SelectTrigger className="h-9 text-xs rounded-lg">
@@ -576,6 +577,7 @@ export default function FinalsManager() {
                                   : <SelectValue placeholder="Team B" />}
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__tbd__">— TBD —</SelectItem>
                                 {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
                                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                                 ))}
@@ -591,7 +593,7 @@ export default function FinalsManager() {
                             <Select
                               value={placeholderMatches[group].final!.team_a_id ?? ""}
                               onValueChange={(v) =>
-                                updatePlaceholderTeam(placeholderMatches[group].final!.id, "team_a_id", v || null)
+                                updatePlaceholderTeam(placeholderMatches[group].final!.id, "team_a_id", !v || v === "__tbd__" ? null : v)
                               }
                             >
                               <SelectTrigger className="h-9 text-xs rounded-lg">
@@ -600,6 +602,7 @@ export default function FinalsManager() {
                                   : <SelectValue placeholder="Team A" />}
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__tbd__">— TBD —</SelectItem>
                                 {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
                                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                                 ))}
@@ -608,7 +611,7 @@ export default function FinalsManager() {
                             <Select
                               value={placeholderMatches[group].final!.team_b_id ?? ""}
                               onValueChange={(v) =>
-                                updatePlaceholderTeam(placeholderMatches[group].final!.id, "team_b_id", v || null)
+                                updatePlaceholderTeam(placeholderMatches[group].final!.id, "team_b_id", !v || v === "__tbd__" ? null : v)
                               }
                             >
                               <SelectTrigger className="h-9 text-xs rounded-lg">
@@ -617,6 +620,7 @@ export default function FinalsManager() {
                                   : <SelectValue placeholder="Team B" />}
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__tbd__">— TBD —</SelectItem>
                                 {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
                                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                                 ))}
