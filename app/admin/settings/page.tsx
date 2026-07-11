@@ -52,6 +52,8 @@ export default function AdminSettingsPage() {
   const [resetConfirm, setResetConfirm] = useState(false);
   const [purgingTeams, setPurgingTeams] = useState(false);
   const [purgeTeamsConfirm, setPurgeTeamsConfirm] = useState(false);
+  const [addingFinals, setAddingFinals] = useState(false);
+  const [finalsSummary, setFinalsSummary] = useState<string | null>(null);
 
   const [published, setPublished] = useState<boolean>(false);
   const [publishSaving, setPublishSaving] = useState(false);
@@ -335,6 +337,122 @@ export default function AdminSettingsPage() {
     }
     setPublished(nextValue === "true");
     showToast(nextValue === "true" ? "Published — parents can now see teams." : "Unpublished — teams hidden from parents.");
+  }
+
+  // ── Add missing finals to existing schedules ────────────
+
+  async function handleAddMissingFinals() {
+    setAddingFinals(true);
+    setFinalsSummary(null);
+    setError(null);
+
+    // Global schedule config for slot-time math (lunch shift).
+    const { data: settingsRows } = await supabase
+      .from("settings")
+      .select("key, value")
+      .in("key", ["competition_start_time", "competition_lunch_start"]);
+    const settingsMap = new Map((settingsRows ?? []).map((r) => [r.key, r.value]));
+    const globalStart = settingsMap.get("competition_start_time");
+    const lunchIso = settingsMap.get("competition_lunch_start");
+    const lunchMs = lunchIso ? new Date(lunchIso).getTime() : null;
+    const MATCH_MIN = 25;
+    const LUNCH_MIN = 30;
+
+    const { data: tournaments, error: tErr } = await supabase
+      .from("tournaments")
+      .select("id, name, start_time, schedule_grand_final, schedule_plate_final");
+    if (tErr) {
+      setError(`Fetch tournaments failed: ${tErr.message}`);
+      setAddingFinals(false);
+      return;
+    }
+
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const t of (tournaments ?? []) as Array<{
+      id: string; name: string; start_time: string | null;
+      schedule_grand_final: boolean; schedule_plate_final: boolean;
+    }>) {
+      const baseIso = t.start_time ?? globalStart;
+      if (!baseIso) {
+        errors.push(`${t.name}: no start time`);
+        continue;
+      }
+      const baseMs = new Date(baseIso).getTime();
+
+      // Count existing RR matches (match_type='league' or null) for this tournament
+      const { count: rrCount } = await supabase
+        .from("matches")
+        .select("id", { count: "exact", head: true })
+        .eq("tournament_id", t.id)
+        .or("match_type.eq.league,match_type.is.null");
+
+      // Check what finals already exist
+      const { data: existingFinals } = await supabase
+        .from("matches")
+        .select("id, match_type")
+        .eq("tournament_id", t.id)
+        .in("match_type", ["final", "plate_final"]);
+      const hasFinal = (existingFinals ?? []).some((m) => m.match_type === "final");
+      const hasPlate = (existingFinals ?? []).some((m) => m.match_type === "plate_final");
+
+      // Fetch teams for this tournament (used as placeholder team ids)
+      const { data: teams } = await supabase.from("teams").select("id").eq("tournament_id", t.id);
+      const teamList = teams ?? [];
+
+      const slotTime = (idx: number) => {
+        let ms = baseMs + idx * MATCH_MIN * 60_000;
+        if (lunchMs !== null && ms >= lunchMs) ms += LUNCH_MIN * 60_000;
+        return new Date(ms).toISOString();
+      };
+
+      let nextSlot = rrCount ?? 0;
+
+      // Plate first (if configured, enough teams, not already present)
+      if (t.schedule_plate_final && teamList.length >= 4 && !hasPlate) {
+        const { error } = await supabase.from("matches").insert({
+          tournament_id: t.id,
+          team_a_id: teamList[2].id,
+          team_b_id: teamList[3].id,
+          match_type: "plate_final",
+          score_a: 0, score_b: 0, wickets_a: 0, wickets_b: 0,
+          status: false,
+          scheduled_time: slotTime(nextSlot),
+        });
+        if (error) errors.push(`${t.name} plate: ${error.message}`);
+        else { created += 1; nextSlot += 1; }
+      } else if (hasPlate) {
+        skipped += 1;
+      }
+
+      // Grand Final always last
+      if (t.schedule_grand_final && teamList.length >= 2 && !hasFinal) {
+        // If plate was already there, put grand final after it
+        const grandSlot = hasPlate ? nextSlot + 1 : nextSlot;
+        const { error } = await supabase.from("matches").insert({
+          tournament_id: t.id,
+          team_a_id: teamList[0].id,
+          team_b_id: teamList[1].id,
+          match_type: "final",
+          score_a: 0, score_b: 0, wickets_a: 0, wickets_b: 0,
+          status: false,
+          scheduled_time: slotTime(grandSlot),
+        });
+        if (error) errors.push(`${t.name} final: ${error.message}`);
+        else created += 1;
+      } else if (hasFinal) {
+        skipped += 1;
+      }
+    }
+
+    setAddingFinals(false);
+    if (errors.length > 0) setError(errors.join("; "));
+    setFinalsSummary(
+      `${created} added, ${skipped} already present${errors.length ? `, ${errors.length} errors` : ""}.`,
+    );
+    fetchCounts();
   }
 
   // ── Purge all teams (keep players + profiles) ───────────
@@ -686,6 +804,36 @@ export default function AdminSettingsPage() {
                   Cancel
                 </Button>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Add missing finals card ──────────────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">
+              Add missing finals to schedule
+            </CardTitle>
+            <CardDescription className="text-sm">
+              For every tournament, checks the finals toggles and inserts any
+              missing Plate / Grand Final placeholder at the right slot after
+              the existing round-robin matches. Doesn&apos;t re-generate or
+              wipe existing matches — safe to run after fixtures have already
+              been generated.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            <Separator />
+            <Button
+              onClick={handleAddMissingFinals}
+              disabled={addingFinals}
+              className="h-12 w-full rounded-xl font-bold gap-2"
+            >
+              {addingFinals ? <><Spinner />Adding...</> : "Add missing finals"}
+            </Button>
+            {finalsSummary && (
+              <p className="text-xs text-muted-foreground text-center">{finalsSummary}</p>
             )}
           </CardContent>
         </Card>
