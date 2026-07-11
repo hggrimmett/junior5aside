@@ -201,10 +201,11 @@ export default function AddPlayerDialog({
     setLoadingLookups(true);
     (async () => {
       const [parentsRes, teamsRes] = await Promise.all([
+        // Any profile can be a guardian — parents, mentors, coaches,
+        // superadmins. We list them all so a kid can be linked to any of them.
         supabase
           .from("profiles")
           .select("id, full_name, email")
-          .eq("role", "parent")
           .order("full_name", { ascending: true }),
         supabase.from("teams").select("id, name, tournaments(colour)"),
       ]);

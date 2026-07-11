@@ -68,7 +68,7 @@ function formatTime(iso: string | null): string {
 export default function HomePage() {
   const supabase = getSupabaseBrowserClient();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [mentorTeam, setMentorTeam] = useState<Team | null | "loading">("loading");
+  const [mentorTeam, setMentorTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Mentor roster state
@@ -76,6 +76,7 @@ export default function HomePage() {
   const [parentContacts, setParentContacts] = useState<ParentContact[]>([]);
   const [mentorMatches, setMentorMatches] = useState<MentorMatch[]>([]);
   const [mentorTournament, setMentorTournament] = useState<Tournament | null>(null);
+  const [hasLinkedKids, setHasLinkedKids] = useState(false);
 
   // Mentor profile edit
   const [fullName, setFullName] = useState("");
@@ -99,30 +100,36 @@ export default function HomePage() {
         setFullName(data.full_name);
         setMobile(data.mobile_number);
 
-        // If mentor, fetch their team + roster + matches via the mentor context endpoint
-        // (bypasses RLS via admin client server-side).
-        if (data.role === "mentor") {
-          const ctxRes = await fetch("/api/mentor/team-context");
-          if (ctxRes.ok) {
-            const ctx = (await ctxRes.json()) as {
-              team: { id: string; name: string; tournament: Tournament | null } | null;
-              players: Player[];
-              parents: ParentContact[];
-              matches: MentorMatch[];
-            };
-            if (ctx.team) {
-              setMentorTeam({ id: ctx.team.id, name: ctx.team.name });
-              setMentorTournament(ctx.team.tournament ?? null);
-              setTeamPlayers(ctx.players);
-              setParentContacts(ctx.parents);
-              setMentorMatches(ctx.matches);
-            } else {
-              setMentorTeam(null);
-            }
+        // Anyone (any role) might be assigned as a team's mentor. The
+        // endpoint returns team=null if this user isn't in teams.mentor_id
+        // for any team, so this is safe to call universally.
+        const ctxRes = await fetch("/api/mentor/team-context");
+        if (ctxRes.ok) {
+          const ctx = (await ctxRes.json()) as {
+            team: { id: string; name: string; tournament: Tournament | null } | null;
+            players: Player[];
+            parents: ParentContact[];
+            matches: MentorMatch[];
+          };
+          if (ctx.team) {
+            setMentorTeam({ id: ctx.team.id, name: ctx.team.name });
+            setMentorTournament(ctx.team.tournament ?? null);
+            setTeamPlayers(ctx.players);
+            setParentContacts(ctx.parents);
+            setMentorMatches(ctx.matches);
           } else {
             setMentorTeam(null);
           }
+        } else {
+          setMentorTeam(null);
         }
+
+        // Anyone (any role) might have kids linked via players.parent_id.
+        const { count: kidCount } = await supabase
+          .from("players")
+          .select("id", { count: "exact", head: true })
+          .eq("parent_id", user.id);
+        setHasLinkedKids((kidCount ?? 0) > 0);
       }
       setLoading(false);
     }
@@ -155,10 +162,12 @@ export default function HomePage() {
     );
   }
 
-  // ── Mentor view ──────────────────────────────────────────
+  // ── Combined view — sections shown based on data relationships ──
 
-  if (isMentor) {
-    const tStyle = mentorTournament ? TOURNAMENT_STYLE[mentorTournament.colour] : null;
+  const isTeamMentor = !!mentorTeam;
+  const tStyle = mentorTournament ? TOURNAMENT_STYLE[mentorTournament.colour] : null;
+
+  if (isTeamMentor) {
 
     return (
       <div className="px-4 py-5 space-y-5">
@@ -172,9 +181,7 @@ export default function HomePage() {
             <CardTitle className="text-base font-black">My Team</CardTitle>
           </CardHeader>
           <CardContent>
-            {mentorTeam === "loading" ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : mentorTeam ? (
+            {mentorTeam ? (
               <div className="space-y-1">
                 <p className="text-2xl font-extrabold text-foreground">{mentorTeam.name}</p>
                 {mentorTournament && tStyle && (
@@ -191,7 +198,7 @@ export default function HomePage() {
         </Card>
 
         {/* My Matches */}
-        {mentorTeam && mentorTeam !== "loading" && (
+        {mentorTeam && (
           <Card className="rounded-2xl shadow-md">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-black">My Matches</CardTitle>
@@ -338,11 +345,54 @@ export default function HomePage() {
             {saved && <p className="text-center text-sm font-medium text-cricket">Saved!</p>}
           </CardContent>
         </Card>
+
+        {/* Nav cards — mentors also want to reach these */}
+        <NavCard
+          href="/competitions"
+          borderColour="border-l-amber-500"
+          iconColour="text-amber-500"
+          icon={<path strokeLinecap="round" strokeLinejoin="round" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />}
+          title="Competition Dashboard"
+          subtitle="Scores, standings & fixtures"
+        />
+        {hasLinkedKids && (
+          <NavCard
+            href="/my-players"
+            borderColour="border-l-emerald-500"
+            iconColour="text-emerald-500"
+            icon={<path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4a4 4 0 11-8 0 4 4 0 018 0zm6 0a3 3 0 11-6 0 3 3 0 016 0z" />}
+            title="My Kids"
+            subtitle="Your linked players"
+          />
+        )}
+        {isAdmin && (
+          <>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground pt-2">Admin</h3>
+            <NavCard
+              href="/admin/tournaments"
+              borderColour="border-l-cricket"
+              iconColour="text-cricket"
+              icon={<path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />}
+              title="Tournament Setup"
+              subtitle="Balancer, fixtures, finals"
+            />
+            {role === "superadmin" && (
+              <NavCard
+                href="/admin/settings"
+                borderColour="border-l-gray-400"
+                iconColour="text-gray-500"
+                icon={<path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />}
+                title="Admin Settings"
+                subtitle="People, schedule, publish, purge"
+              />
+            )}
+          </>
+        )}
       </div>
     );
   }
 
-  // ── Parent / Admin view ──────────────────────────────────
+  // ── Non-mentor view (parent-only, coach, superadmin without a team) ──
 
   return (
     <div className="px-4 py-5 space-y-4">
