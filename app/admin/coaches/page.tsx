@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import RoleAndDelete from "@/components/admin/RoleAndDelete";
+import AddCoachDialog from "@/components/admin/AddCoachDialog";
 
 interface CoachRow {
   id: string;
@@ -51,6 +53,7 @@ export default function AdminCoachesPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -116,6 +119,15 @@ export default function AdminCoachesPage() {
             {loading ? "…" : `${rows.length} total`}
           </p>
         </div>
+
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="h-11 w-full rounded-xl bg-cricket text-cricket-foreground hover:opacity-90 font-bold"
+        >
+          + Add coach
+        </Button>
+
+        <AddCoachDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreated={load} />
 
         <div className="rounded-xl border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
           Coaches can use the <strong>Team Balancer</strong> and <strong>Live Scoring</strong>.
