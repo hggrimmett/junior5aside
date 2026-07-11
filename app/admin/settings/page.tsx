@@ -56,6 +56,8 @@ export default function AdminSettingsPage() {
   const [finalsSummary, setFinalsSummary] = useState<string | null>(null);
   const [syncingEmails, setSyncingEmails] = useState(false);
   const [emailSyncSummary, setEmailSyncSummary] = useState<string | null>(null);
+  const [clearingFinalists, setClearingFinalists] = useState(false);
+  const [clearFinalistsSummary, setClearFinalistsSummary] = useState<string | null>(null);
 
   const [published, setPublished] = useState<boolean>(false);
   const [publishSaving, setPublishSaving] = useState(false);
@@ -470,6 +472,25 @@ export default function AdminSettingsPage() {
     fetchCounts();
   }
 
+  // ── Reset all finalist team selections to TBD ───────────
+
+  async function handleClearFinalists() {
+    setClearingFinalists(true);
+    setClearFinalistsSummary(null);
+    setError(null);
+    const { error: err, count } = await supabase
+      .from("matches")
+      .update({ team_a_id: null, team_b_id: null }, { count: "exact" })
+      .in("match_type", ["final", "plate_final"])
+      .eq("status", false);
+    setClearingFinalists(false);
+    if (err) {
+      setError(`Clear failed: ${err.message}`);
+      return;
+    }
+    setClearFinalistsSummary(`Reset ${count ?? 0} finals to TBD.`);
+  }
+
   // ── Sync auth emails to profiles ─────────────────────────
 
   async function handleSyncAuthEmails() {
@@ -879,6 +900,35 @@ export default function AdminSettingsPage() {
             </Button>
             {finalsSummary && (
               <p className="text-xs text-muted-foreground text-center">{finalsSummary}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Reset finalist teams card ────────────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">
+              Reset finalist teams to TBD
+            </CardTitle>
+            <CardDescription className="text-sm">
+              Clears team assignments on every Grand Final and Plate Final so
+              they show as TBD until you manually pick finalists from{" "}
+              <code>/admin/tournaments</code> → Finals. Doesn&apos;t delete
+              the finals rows themselves — the reserved time slots stay.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            <Separator />
+            <Button
+              onClick={handleClearFinalists}
+              disabled={clearingFinalists}
+              className="h-12 w-full rounded-xl font-bold gap-2"
+            >
+              {clearingFinalists ? <><Spinner />Clearing...</> : "Reset all finalist teams"}
+            </Button>
+            {clearFinalistsSummary && (
+              <p className="text-xs text-muted-foreground text-center">{clearFinalistsSummary}</p>
             )}
           </CardContent>
         </Card>
