@@ -24,6 +24,8 @@ interface Tournament {
   id: string;
   name: string;
   colour: TournamentColour;
+  schedule_grand_final: boolean;
+  schedule_plate_final: boolean;
 }
 
 interface TeamName {
@@ -99,6 +101,15 @@ export default function FinalsManager() {
     Blue: true,
   });
 
+  // Persist toggle changes to the tournament row.
+  async function persistToggle(
+    tournamentId: string,
+    field: "schedule_grand_final" | "schedule_plate_final",
+    value: boolean,
+  ) {
+    await supabase.from("tournaments").update({ [field]: value }).eq("id", tournamentId);
+  }
+
   // ── Fetch data ───────────────────────────────────────────
 
   const fetchAll = useCallback(async () => {
@@ -131,6 +142,19 @@ export default function FinalsManager() {
         tournamentMap[t.colour] = t;
       }
     }
+
+    // Seed toggle state from the persistent columns per group.
+    const nextGrand: Record<TournamentColour, boolean> = { Green: true, Red: true, Blue: true };
+    const nextPlate: Record<TournamentColour, boolean> = { Green: true, Red: true, Blue: true };
+    for (const g of COLOURS) {
+      const t = tournamentMap[g];
+      if (t) {
+        nextGrand[g] = t.schedule_grand_final;
+        nextPlate[g] = t.schedule_plate_final;
+      }
+    }
+    setScheduleGrandFinal(nextGrand);
+    setSchedulePlateFinal(nextPlate);
 
     // Check which finals already exist
     const existingFinals = new Set<string>();
@@ -198,49 +222,74 @@ export default function FinalsManager() {
     }
 
     const tournamentId = g.tournament.id;
-    const rows: {
-      tournament_id: string;
-      team_a_id: string;
-      team_b_id: string;
-      match_type: string;
-      score_a: number;
-      score_b: number;
-      wickets_a: number;
-      wickets_b: number;
-      status: boolean;
-      scheduled_time: string | null;
-    }[] = [];
 
+    // Prefer to update the placeholder rows Generate Fixtures already
+    // inserted, so their reserved scheduled_time is preserved. If none exist
+    // for this tournament (older data), fall through to an INSERT.
+    const { data: existingFinals } = await supabase
+      .from("matches")
+      .select("id, match_type, scheduled_time")
+      .eq("tournament_id", tournamentId)
+      .in("match_type", ["final", "plate_final"])
+      .eq("status", false);
+
+    const existingFinal = (existingFinals ?? []).find((m) => m.match_type === "final");
+    const existingPlate = (existingFinals ?? []).find((m) => m.match_type === "plate_final");
+
+    let insertErr: { message: string } | null = null;
+
+    // Handle Plate Final (3rd vs 4th)
     if (wantPlate) {
-      rows.push({
-        tournament_id: tournamentId,
-        team_a_id: g.standings[2].teamId,
-        team_b_id: g.standings[3].teamId,
-        match_type: "plate_final",
-        score_a: 0,
-        score_b: 0,
-        wickets_a: 0,
-        wickets_b: 0,
-        status: false,
-        scheduled_time: plateIso,
-      });
+      if (existingPlate) {
+        const { error } = await supabase
+          .from("matches")
+          .update({
+            team_a_id: g.standings[2].teamId,
+            team_b_id: g.standings[3].teamId,
+            scheduled_time: plateIso ?? existingPlate.scheduled_time,
+          })
+          .eq("id", existingPlate.id);
+        if (error) insertErr = error;
+      } else {
+        const { error } = await supabase.from("matches").insert({
+          tournament_id: tournamentId,
+          team_a_id: g.standings[2].teamId,
+          team_b_id: g.standings[3].teamId,
+          match_type: "plate_final",
+          score_a: 0, score_b: 0, wickets_a: 0, wickets_b: 0,
+          status: false,
+          scheduled_time: plateIso,
+        });
+        if (error) insertErr = error;
+      }
+    } else if (existingPlate) {
+      // Plate was toggled off since generation — drop the placeholder.
+      await supabase.from("matches").delete().eq("id", existingPlate.id);
     }
 
-    // Grand Final: 1st vs 2nd
-    rows.push({
-      tournament_id: tournamentId,
-      team_a_id: g.standings[0].teamId,
-      team_b_id: g.standings[1].teamId,
-      match_type: "final",
-      score_a: 0,
-      score_b: 0,
-      wickets_a: 0,
-      wickets_b: 0,
-      status: false,
-      scheduled_time: finalIso,
-    });
-
-    const { error: insertErr } = await supabase.from("matches").insert(rows);
+    // Handle Grand Final (1st vs 2nd)
+    if (existingFinal) {
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          team_a_id: g.standings[0].teamId,
+          team_b_id: g.standings[1].teamId,
+          scheduled_time: finalIso ?? existingFinal.scheduled_time,
+        })
+        .eq("id", existingFinal.id);
+      if (error) insertErr = error;
+    } else {
+      const { error } = await supabase.from("matches").insert({
+        tournament_id: tournamentId,
+        team_a_id: g.standings[0].teamId,
+        team_b_id: g.standings[1].teamId,
+        match_type: "final",
+        score_a: 0, score_b: 0, wickets_a: 0, wickets_b: 0,
+        status: false,
+        scheduled_time: finalIso,
+      });
+      if (error) insertErr = error;
+    }
 
     if (insertErr) {
       setError(insertErr.message);
@@ -385,9 +434,11 @@ export default function FinalsManager() {
                         <input
                           type="checkbox"
                           checked={scheduleGrandFinal[group]}
-                          onChange={(e) =>
-                            setScheduleGrandFinal((prev) => ({ ...prev, [group]: e.target.checked }))
-                          }
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setScheduleGrandFinal((prev) => ({ ...prev, [group]: val }));
+                            if (g.tournament) persistToggle(g.tournament.id, "schedule_grand_final", val);
+                          }}
                           className="h-5 w-5 shrink-0 accent-cricket"
                         />
                       </label>
@@ -404,9 +455,11 @@ export default function FinalsManager() {
                           type="checkbox"
                           checked={schedulePlateFinal[group] && scheduleGrandFinal[group] && hasPlateTeams}
                           disabled={!scheduleGrandFinal[group] || !hasPlateTeams}
-                          onChange={(e) =>
-                            setSchedulePlateFinal((prev) => ({ ...prev, [group]: e.target.checked }))
-                          }
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setSchedulePlateFinal((prev) => ({ ...prev, [group]: val }));
+                            if (g.tournament) persistToggle(g.tournament.id, "schedule_plate_final", val);
+                          }}
                           className="h-5 w-5 shrink-0 accent-cricket"
                         />
                       </label>

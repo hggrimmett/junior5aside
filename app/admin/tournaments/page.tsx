@@ -42,6 +42,8 @@ interface Tournament {
   colour: TournamentColour;
   max_team_size: number;
   start_time: string | null;
+  schedule_grand_final: boolean;
+  schedule_plate_final: boolean;
 }
 
 // ── Colour helpers ─────────────────────────────────────────
@@ -231,7 +233,7 @@ export default function TournamentsPage() {
     setLoading(true);
     const { data, error: fetchErr } = await supabase
       .from("tournaments")
-      .select("id, name, colour, max_team_size, start_time")
+      .select("id, name, colour, max_team_size, start_time, schedule_grand_final, schedule_plate_final")
       .order("name")
       .returns<Tournament[]>();
 
@@ -330,7 +332,7 @@ export default function TournamentsPage() {
         colour: newColour,
         max_team_size: newMaxSize,
       })
-      .select("id, name, colour, max_team_size, start_time")
+      .select("id, name, colour, max_team_size, start_time, schedule_grand_final, schedule_plate_final")
       .single<Tournament>();
 
     if (insertErr) {
@@ -682,22 +684,72 @@ export default function TournamentsPage() {
       return;
     }
 
-    // 6. Bulk insert new matches with computed scheduled_time
-    const rows = pairs.map(([home, away], i) => {
-      let startMs = baseMs + i * MATCH_MIN * 60_000;
+    // Helper: compute scheduled_time for slot index N (with lunch shift).
+    const slotTime = (idx: number): string => {
+      let startMs = baseMs + idx * MATCH_MIN * 60_000;
       if (lunchMs !== null && startMs >= lunchMs) startMs += LUNCH_MIN * 60_000;
-      return {
+      return new Date(startMs).toISOString();
+    };
+
+    // 6. Bulk insert new matches with computed scheduled_time
+    const rows: Array<{
+      tournament_id: string;
+      team_a_id: string;
+      team_b_id: string;
+      score_a: number;
+      score_b: number;
+      wickets_a: number;
+      wickets_b: number;
+      status: boolean;
+      scheduled_time: string;
+      match_type: string;
+    }> = pairs.map(([home, away], i) => ({
+      tournament_id: tournament.id,
+      team_a_id: home.id,
+      team_b_id: away.id,
+      score_a: 0,
+      score_b: 0,
+      wickets_a: 0,
+      wickets_b: 0,
+      status: false,
+      scheduled_time: slotTime(i),
+      match_type: "league",
+    }));
+
+    // 6b. Placeholder finals per tournament toggles. Plate first, Grand Final
+    //     always last. Team IDs are provisional (teams[0..3]) and get updated
+    //     to actual finalists by FinalsManager once RR standings resolve.
+    let nextSlot = pairs.length;
+    const wantPlate = tournament.schedule_plate_final && teams.length >= 4;
+    if (wantPlate) {
+      rows.push({
         tournament_id: tournament.id,
-        team_a_id: home.id,
-        team_b_id: away.id,
+        team_a_id: teams[2].id,
+        team_b_id: teams[3].id,
         score_a: 0,
         score_b: 0,
         wickets_a: 0,
         wickets_b: 0,
         status: false,
-        scheduled_time: new Date(startMs).toISOString(),
-      };
-    });
+        scheduled_time: slotTime(nextSlot),
+        match_type: "plate_final",
+      });
+      nextSlot += 1;
+    }
+    if (tournament.schedule_grand_final && teams.length >= 2) {
+      rows.push({
+        tournament_id: tournament.id,
+        team_a_id: teams[0].id,
+        team_b_id: teams[1].id,
+        score_a: 0,
+        score_b: 0,
+        wickets_a: 0,
+        wickets_b: 0,
+        status: false,
+        scheduled_time: slotTime(nextSlot),
+        match_type: "final",
+      });
+    }
 
     const { error: insertErr } = await supabase.from("matches").insert(rows);
 
