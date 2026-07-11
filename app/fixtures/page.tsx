@@ -388,10 +388,13 @@ function MatchCard({
   userRole: string | null;
   onRefetch: () => void;
 }) {
-  const teamAName = match.team_a?.name ?? "TBC";
-  const teamBName = match.team_b?.name ?? "TBC";
+  const teamAName = match.team_a?.name ?? "TBD";
+  const teamBName = match.team_b?.name ?? "TBD";
   const isLive = match.matchStatus === "live";
   const isCompleted = match.matchStatus === "completed";
+  const isGrandFinal = match.match_type === "final";
+  const isPlateFinal = match.match_type === "plate_final";
+  const isFinalMatch = isGrandFinal || isPlateFinal;
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const supabase = getSupabaseBrowserClient();
@@ -434,37 +437,54 @@ function MatchCard({
 
   return (
     <Card
-      className={`rounded-xl shadow-sm overflow-hidden ${
-        isLive ? pitch.leftBorder : ""
-      }`}
+      className={`rounded-xl overflow-hidden ${
+        isFinalMatch
+          ? isGrandFinal
+            ? "shadow-md border-2 border-amber-500 bg-amber-50/40"
+            : "shadow-md border-2 border-blue-500 bg-blue-50/40"
+          : "shadow-sm"
+      } ${isLive && !isFinalMatch ? pitch.leftBorder : ""}`}
     >
       <CardContent className="px-4 py-3">
         <div className="flex items-start justify-between gap-2">
           {/* Left: match number + teams */}
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground mb-1">
-              Match {match.seqWithinTournament}
+              {isFinalMatch ? (
+                <span
+                  className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-black ${
+                    isGrandFinal ? "bg-amber-500 text-white" : "bg-blue-500 text-white"
+                  }`}
+                >
+                  {isGrandFinal ? "🏆 GRAND FINAL" : "🥈 PLATE FINAL"}
+                </span>
+              ) : (
+                <>Match {match.seqWithinTournament}</>
+              )}
               {match.scheduled_time && (
                 <span className="ml-2 font-semibold normal-case tracking-normal">
                   · {formatTime(match.scheduled_time)}
-                </span>
-              )}
-              {match.match_type && (
-                <span className="ml-2 font-semibold normal-case tracking-normal opacity-70">
-                  · {match.match_type}
                 </span>
               )}
             </p>
 
             {/* Teams */}
             <div className="space-y-0.5">
-              <p className="text-sm font-bold text-foreground truncate leading-tight">
+              <p
+                className={`truncate leading-tight ${
+                  isFinalMatch ? "text-base font-extrabold text-foreground" : "text-sm font-bold text-foreground"
+                }`}
+              >
                 {teamAName}
               </p>
               <p className="text-[10px] font-semibold text-muted-foreground">
                 vs
               </p>
-              <p className="text-sm font-bold text-foreground truncate leading-tight">
+              <p
+                className={`truncate leading-tight ${
+                  isFinalMatch ? "text-base font-extrabold text-foreground" : "text-sm font-bold text-foreground"
+                }`}
+              >
                 {teamBName}
               </p>
             </div>

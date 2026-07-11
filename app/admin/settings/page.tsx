@@ -54,6 +54,8 @@ export default function AdminSettingsPage() {
   const [purgeTeamsConfirm, setPurgeTeamsConfirm] = useState(false);
   const [addingFinals, setAddingFinals] = useState(false);
   const [finalsSummary, setFinalsSummary] = useState<string | null>(null);
+  const [syncingEmails, setSyncingEmails] = useState(false);
+  const [emailSyncSummary, setEmailSyncSummary] = useState<string | null>(null);
 
   const [published, setPublished] = useState<boolean>(false);
   const [publishSaving, setPublishSaving] = useState(false);
@@ -398,9 +400,22 @@ export default function AdminSettingsPage() {
       const hasFinal = (existingFinals ?? []).some((m) => m.match_type === "final");
       const hasPlate = (existingFinals ?? []).some((m) => m.match_type === "plate_final");
 
-      // Fetch teams for this tournament (used as placeholder team ids)
-      const { data: teams } = await supabase.from("teams").select("id").eq("tournament_id", t.id);
-      const teamList = teams ?? [];
+      // Fetch teams count (used only to gate plate final min-teams check)
+      const { count: teamCount } = await supabase
+        .from("teams")
+        .select("id", { count: "exact", head: true })
+        .eq("tournament_id", t.id);
+      const numTeams = teamCount ?? 0;
+
+      // Clear team ids on any existing finals placeholders so misleading
+      // arbitrary teams disappear. Manual selection will fill them in.
+      const staleFinalIds = (existingFinals ?? []).map((m) => m.id);
+      if (staleFinalIds.length > 0) {
+        await supabase
+          .from("matches")
+          .update({ team_a_id: null, team_b_id: null })
+          .in("id", staleFinalIds);
+      }
 
       const slotTime = (idx: number) => {
         let ms = baseMs + idx * MATCH_MIN * 60_000;
@@ -411,11 +426,11 @@ export default function AdminSettingsPage() {
       let nextSlot = rrCount ?? 0;
 
       // Plate first (if configured, enough teams, not already present)
-      if (t.schedule_plate_final && teamList.length >= 4 && !hasPlate) {
+      if (t.schedule_plate_final && numTeams >= 4 && !hasPlate) {
         const { error } = await supabase.from("matches").insert({
           tournament_id: t.id,
-          team_a_id: teamList[2].id,
-          team_b_id: teamList[3].id,
+          team_a_id: null,
+          team_b_id: null,
           match_type: "plate_final",
           score_a: 0, score_b: 0, wickets_a: 0, wickets_b: 0,
           status: false,
@@ -428,13 +443,13 @@ export default function AdminSettingsPage() {
       }
 
       // Grand Final always last
-      if (t.schedule_grand_final && teamList.length >= 2 && !hasFinal) {
+      if (t.schedule_grand_final && numTeams >= 2 && !hasFinal) {
         // If plate was already there, put grand final after it
         const grandSlot = hasPlate ? nextSlot + 1 : nextSlot;
         const { error } = await supabase.from("matches").insert({
           tournament_id: t.id,
-          team_a_id: teamList[0].id,
-          team_b_id: teamList[1].id,
+          team_a_id: null,
+          team_b_id: null,
           match_type: "final",
           score_a: 0, score_b: 0, wickets_a: 0, wickets_b: 0,
           status: false,
@@ -453,6 +468,36 @@ export default function AdminSettingsPage() {
       `${created} added, ${skipped} already present${errors.length ? `, ${errors.length} errors` : ""}.`,
     );
     fetchCounts();
+  }
+
+  // ── Sync auth emails to profiles ─────────────────────────
+
+  async function handleSyncAuthEmails() {
+    setSyncingEmails(true);
+    setEmailSyncSummary(null);
+    setError(null);
+
+    const res = await fetch("/api/admin/sync-auth-emails", { method: "POST" });
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      checked?: number;
+      synced?: number;
+      alreadyMatched?: number;
+      skipped?: number;
+      errors?: string[];
+    };
+    setSyncingEmails(false);
+    if (!res.ok) {
+      setError(json.error ?? "Sync failed");
+      return;
+    }
+    const errCount = json.errors?.length ?? 0;
+    setEmailSyncSummary(
+      `${json.synced ?? 0} synced, ${json.alreadyMatched ?? 0} already matched, ${json.skipped ?? 0} skipped${
+        errCount ? `, ${errCount} errors` : ""
+      }.`,
+    );
+    if (errCount > 0) setError(json.errors!.join("; "));
   }
 
   // ── Purge all teams (keep players + profiles) ───────────
@@ -834,6 +879,35 @@ export default function AdminSettingsPage() {
             </Button>
             {finalsSummary && (
               <p className="text-xs text-muted-foreground text-center">{finalsSummary}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Sync auth emails card ────────────────────── */}
+        <Card className="rounded-2xl shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-black">
+              Sync login emails to profiles
+            </CardTitle>
+            <CardDescription className="text-sm">
+              Where a profile&apos;s email differs from the login email in
+              auth.users, force the login email to match the profile. Useful
+              after historical dashboard edits that only touched the profile
+              row. Superadmin profiles are never touched.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            <Separator />
+            <Button
+              onClick={handleSyncAuthEmails}
+              disabled={syncingEmails}
+              className="h-12 w-full rounded-xl font-bold gap-2"
+            >
+              {syncingEmails ? <><Spinner />Syncing...</> : "Sync all auth emails"}
+            </Button>
+            {emailSyncSummary && (
+              <p className="text-xs text-muted-foreground text-center">{emailSyncSummary}</p>
             )}
           </CardContent>
         </Card>

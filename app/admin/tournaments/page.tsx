@@ -694,8 +694,8 @@ export default function TournamentsPage() {
     // 6. Bulk insert new matches with computed scheduled_time
     const rows: Array<{
       tournament_id: string;
-      team_a_id: string;
-      team_b_id: string;
+      team_a_id: string | null;
+      team_b_id: string | null;
       score_a: number;
       score_b: number;
       wickets_a: number;
@@ -717,15 +717,15 @@ export default function TournamentsPage() {
     }));
 
     // 6b. Placeholder finals per tournament toggles. Plate first, Grand Final
-    //     always last. Team IDs are provisional (teams[0..3]) and get updated
-    //     to actual finalists by FinalsManager once RR standings resolve.
+    //     always last. Team IDs are NULL until finalists are known (either
+    //     via manual selection or standings-based createFinals in FinalsManager).
     let nextSlot = pairs.length;
     const wantPlate = tournament.schedule_plate_final && teams.length >= 4;
     if (wantPlate) {
       rows.push({
         tournament_id: tournament.id,
-        team_a_id: teams[2].id,
-        team_b_id: teams[3].id,
+        team_a_id: null,
+        team_b_id: null,
         score_a: 0,
         score_b: 0,
         wickets_a: 0,
@@ -739,8 +739,8 @@ export default function TournamentsPage() {
     if (tournament.schedule_grand_final && teams.length >= 2) {
       rows.push({
         tournament_id: tournament.id,
-        team_a_id: teams[0].id,
-        team_b_id: teams[1].id,
+        team_a_id: null,
+        team_b_id: null,
         score_a: 0,
         score_b: 0,
         wickets_a: 0,

@@ -62,10 +62,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const cleaned = newEmail.trim();
+  const cleaned = newEmail.trim().toLowerCase();
 
-  // 1) Update auth.users.email with email_confirm:true so it's instantly active
-  //    for login and password-reset lookups.
+  // 1) Try the standard Auth Admin API first. With email_confirm:true this
+  //    marks the new address as verified so login should work immediately.
   const { error: authErr } = await admin.auth.admin.updateUserById(profileId, {
     email: cleaned,
     email_confirm: true,
@@ -74,7 +74,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Auth update failed: ${authErr.message}` }, { status: 400 });
   }
 
-  // 2) Mirror the change to profiles.email so app queries stay in sync.
+  // 2) Belt-and-braces: some Supabase projects have "Secure email change"
+  //    enabled, which keeps the OLD email active until BOTH addresses confirm.
+  //    We want an instant swap here, so force auth.users directly via SQL.
+  //    Also clear any pending email_change fields left over from step 1.
+  await admin.rpc("force_email_change_admin", {
+    p_user_id: profileId,
+    p_new_email: cleaned,
+  });
+
+  // 3) Mirror the change to profiles.email so app queries stay in sync.
   const { error: profileErr } = await admin
     .from("profiles")
     .update({ email: cleaned })

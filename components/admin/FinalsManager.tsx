@@ -15,6 +15,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -101,6 +108,19 @@ export default function FinalsManager() {
     Blue: true,
   });
 
+  // Teams grouped by tournament, for the manual finalist dropdowns.
+  const [teamsByTournament, setTeamsByTournament] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+
+  // Placeholder finals rows per group (id + current teams) so we can UPDATE them.
+  const [placeholderMatches, setPlaceholderMatches] = useState<Record<TournamentColour, {
+    final: { id: string; team_a_id: string | null; team_b_id: string | null } | null;
+    plate: { id: string; team_a_id: string | null; team_b_id: string | null } | null;
+  }>>({
+    Green: { final: null, plate: null },
+    Red: { final: null, plate: null },
+    Blue: { final: null, plate: null },
+  });
+
   // Persist toggle changes to the tournament row.
   async function persistToggle(
     tournamentId: string,
@@ -118,18 +138,26 @@ export default function FinalsManager() {
 
     const [tournamentsRes, teamsRes, existingFinalsRes] = await Promise.all([
       supabase.from("tournaments").select("*").returns<Tournament[]>(),
-      supabase.from("teams").select("id, name").returns<TeamName[]>(),
+      supabase.from("teams").select("id, name, tournament_id").returns<Array<{ id: string; name: string; tournament_id: string }>>(),
       supabase
         .from("matches")
-        .select("tournament_id, match_type")
+        .select("id, tournament_id, match_type, team_a_id, team_b_id")
         .in("match_type", ["final", "plate_final"])
-        .returns<{ tournament_id: string; match_type: string }[]>(),
+        .eq("status", false)
+        .returns<Array<{ id: string; tournament_id: string; match_type: string; team_a_id: string | null; team_b_id: string | null }>>(),
     ]);
 
-    // Build team name map
+    // Build team name map + group teams by tournament for dropdowns
     const names: Record<string, string> = {};
-    for (const t of teamsRes.data ?? []) names[t.id] = t.name;
+    const teamsGrouped: Record<string, Array<{ id: string; name: string }>> = {};
+    for (const t of teamsRes.data ?? []) {
+      names[t.id] = t.name;
+      const arr = teamsGrouped[t.tournament_id] ?? [];
+      arr.push({ id: t.id, name: t.name });
+      teamsGrouped[t.tournament_id] = arr;
+    }
     setTeamNames(names);
+    setTeamsByTournament(teamsGrouped);
 
     // Map tournaments by colour
     const tournamentMap: Record<TournamentColour, Tournament | null> = {
@@ -153,6 +181,26 @@ export default function FinalsManager() {
         nextPlate[g] = t.schedule_plate_final;
       }
     }
+    // Populate placeholder finals per group so manual selectors can bind to them.
+    const nextPlaceholders: Record<TournamentColour, {
+      final: { id: string; team_a_id: string | null; team_b_id: string | null } | null;
+      plate: { id: string; team_a_id: string | null; team_b_id: string | null } | null;
+    }> = {
+      Green: { final: null, plate: null },
+      Red: { final: null, plate: null },
+      Blue: { final: null, plate: null },
+    };
+    for (const row of existingFinalsRes.data ?? []) {
+      const grp = COLOURS.find((c) => tournamentMap[c]?.id === row.tournament_id);
+      if (!grp) continue;
+      if (row.match_type === "final") {
+        nextPlaceholders[grp].final = { id: row.id, team_a_id: row.team_a_id, team_b_id: row.team_b_id };
+      } else if (row.match_type === "plate_final") {
+        nextPlaceholders[grp].plate = { id: row.id, team_a_id: row.team_a_id, team_b_id: row.team_b_id };
+      }
+    }
+    setPlaceholderMatches(nextPlaceholders);
+
     setScheduleGrandFinal(nextGrand);
     setSchedulePlateFinal(nextPlate);
 
@@ -315,6 +363,29 @@ export default function FinalsManager() {
     setBusyGroup(null);
   }
 
+  // ── Manual finalist selection ────────────────────────────
+
+  async function updatePlaceholderTeam(
+    matchId: string,
+    field: "team_a_id" | "team_b_id",
+    teamId: string | null,
+  ) {
+    await supabase.from("matches").update({ [field]: teamId }).eq("id", matchId);
+    // Optimistic local update
+    setPlaceholderMatches((prev) => {
+      const next = { ...prev };
+      for (const g of COLOURS) {
+        if (next[g].final?.id === matchId) {
+          next[g] = { ...next[g], final: { ...next[g].final!, [field]: teamId } };
+        }
+        if (next[g].plate?.id === matchId) {
+          next[g] = { ...next[g], plate: { ...next[g].plate!, [field]: teamId } };
+        }
+      }
+      return next;
+    });
+  }
+
   // ── Trophy toggle ────────────────────────────────────────
 
   function toggleTrophy(
@@ -463,6 +534,98 @@ export default function FinalsManager() {
                           className="h-5 w-5 shrink-0 accent-cricket"
                         />
                       </label>
+                    </div>
+                  )}
+
+                  {/* Manual finalist selection — for placeholder finals */}
+                  {g.tournament && (placeholderMatches[group].plate || placeholderMatches[group].final) && (
+                    <div className="rounded-xl border-2 border-cricket/40 bg-cricket/5 p-3 space-y-3">
+                      <p className="text-xs font-black uppercase tracking-widest text-cricket">
+                        Select finalists
+                      </p>
+                      {placeholderMatches[group].plate && (
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Plate Final</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Select
+                              value={placeholderMatches[group].plate!.team_a_id ?? ""}
+                              onValueChange={(v) =>
+                                updatePlaceholderTeam(placeholderMatches[group].plate!.id, "team_a_id", v || null)
+                              }
+                            >
+                              <SelectTrigger className="h-9 text-xs rounded-lg">
+                                {placeholderMatches[group].plate!.team_a_id
+                                  ? teamName(placeholderMatches[group].plate!.team_a_id!)
+                                  : <SelectValue placeholder="Team A" />}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={placeholderMatches[group].plate!.team_b_id ?? ""}
+                              onValueChange={(v) =>
+                                updatePlaceholderTeam(placeholderMatches[group].plate!.id, "team_b_id", v || null)
+                              }
+                            >
+                              <SelectTrigger className="h-9 text-xs rounded-lg">
+                                {placeholderMatches[group].plate!.team_b_id
+                                  ? teamName(placeholderMatches[group].plate!.team_b_id!)
+                                  : <SelectValue placeholder="Team B" />}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                      {placeholderMatches[group].final && (
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Grand Final</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Select
+                              value={placeholderMatches[group].final!.team_a_id ?? ""}
+                              onValueChange={(v) =>
+                                updatePlaceholderTeam(placeholderMatches[group].final!.id, "team_a_id", v || null)
+                              }
+                            >
+                              <SelectTrigger className="h-9 text-xs rounded-lg">
+                                {placeholderMatches[group].final!.team_a_id
+                                  ? teamName(placeholderMatches[group].final!.team_a_id!)
+                                  : <SelectValue placeholder="Team A" />}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={placeholderMatches[group].final!.team_b_id ?? ""}
+                              onValueChange={(v) =>
+                                updatePlaceholderTeam(placeholderMatches[group].final!.id, "team_b_id", v || null)
+                              }
+                            >
+                              <SelectTrigger className="h-9 text-xs rounded-lg">
+                                {placeholderMatches[group].final!.team_b_id
+                                  ? teamName(placeholderMatches[group].final!.team_b_id!)
+                                  : <SelectValue placeholder="Team B" />}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(teamsByTournament[g.tournament.id] ?? []).map((t) => (
+                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">Selections save immediately.</p>
                     </div>
                   )}
 
