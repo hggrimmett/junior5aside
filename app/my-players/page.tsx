@@ -72,10 +72,11 @@ export default function MyPlayersPage() {
 
       setUserId(user.id);
 
+      // RLS filters this to kids whose parent_id = auth.uid() OR who are
+      // linked via guardian_links. No explicit .eq filter needed.
       const { data } = await supabase
         .from("players")
         .select("id, first_name, last_name, name, age_group, avatar_url")
-        .eq("parent_id", user.id)
         .returns<Player[]>();
 
       setPlayers(data ?? []);

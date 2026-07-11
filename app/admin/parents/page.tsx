@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import RoleAndDelete from "@/components/admin/RoleAndDelete";
+import AddParentDialog from "@/components/admin/AddParentDialog";
+import GuardianLinkPicker from "@/components/admin/GuardianLinkPicker";
 
 interface ParentRow {
   id: string;
@@ -60,6 +63,7 @@ export default function AdminParentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -148,6 +152,15 @@ export default function AdminParentsPage() {
           </p>
         </div>
 
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="h-11 w-full rounded-xl bg-cricket text-cricket-foreground hover:opacity-90 font-bold"
+        >
+          + Add parent
+        </Button>
+
+        <AddParentDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreated={load} />
+
         <input
           type="search"
           placeholder="Search by name, email or mobile…"
@@ -234,6 +247,7 @@ export default function AdminParentsPage() {
                     : null}
                   onChanged={load}
                 />
+                <GuardianLinkPicker profileId={p.id} displayName={p.full_name} />
               </CardContent>
             </Card>
           ))}
