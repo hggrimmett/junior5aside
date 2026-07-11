@@ -1174,6 +1174,12 @@ export default function ScorePage() {
             >
               {isBattingA ? "Set Up Team B Innings" : "View Results"}
             </button>
+            <button
+              onClick={undoLast}
+              className="w-full h-11 rounded-2xl border-2 border-amber-500 text-amber-700 text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              ← Undo last ball
+            </button>
           </CardContent>
         </Card>
       );
@@ -1217,6 +1223,12 @@ export default function ScorePage() {
               className="w-full h-12 rounded-2xl bg-cricket text-white text-sm font-black active:scale-[0.98] transition-transform disabled:opacity-40 shadow-md"
             >
               Confirm &amp; Continue
+            </button>
+            <button
+              onClick={() => { setTempBowlerSelection(null); undoLast(); }}
+              className="w-full h-11 rounded-2xl border-2 border-amber-500 text-amber-700 text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              ← Undo last ball
             </button>
           </CardContent>
         </Card>
@@ -1304,6 +1316,12 @@ export default function ScorePage() {
             >
               Confirm &amp; Continue
             </button>
+            <button
+              onClick={() => { setTempBowlerSelection(null); undoLast(); }}
+              className="w-full h-11 rounded-2xl border-2 border-amber-500 text-amber-700 text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              ← Undo last ball
+            </button>
           </CardContent>
         </Card>
       );
@@ -1350,6 +1368,12 @@ export default function ScorePage() {
               className="w-full h-12 rounded-2xl bg-cricket text-white text-sm font-black active:scale-[0.98] transition-transform disabled:opacity-40 shadow-md"
             >
               Confirm &amp; Continue
+            </button>
+            <button
+              onClick={() => { setTempBowlerSelection(null); undoLast(); }}
+              className="w-full h-11 rounded-2xl border-2 border-amber-500 text-amber-700 text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              ← Undo last ball
             </button>
           </CardContent>
         </Card>
