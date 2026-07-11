@@ -284,6 +284,7 @@ export default function FixturesPage() {
                 matches={matches}
                 userId={userId}
                 userRole={userRole}
+                onRefetch={fetchAll}
               />
             );
           })}
@@ -300,11 +301,13 @@ function PitchSection({
   matches,
   userId,
   userRole,
+  onRefetch,
 }: {
   pitch: (typeof PITCHES)[number];
   matches: EnrichedMatch[];
   userId: string | null;
   userRole: string | null;
+  onRefetch: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const liveCount = matches.filter((m) => m.matchStatus === "live").length;
@@ -361,6 +364,7 @@ function PitchSection({
               pitch={pitch}
               userId={userId}
               userRole={userRole}
+              onRefetch={onRefetch}
             />
           ))}
         </div>
@@ -376,16 +380,48 @@ function MatchCard({
   pitch,
   userId,
   userRole,
+  onRefetch,
 }: {
   match: EnrichedMatch;
   pitch: (typeof PITCHES)[number];
   userId: string | null;
   userRole: string | null;
+  onRefetch: () => void;
 }) {
   const teamAName = match.team_a?.name ?? "TBC";
   const teamBName = match.team_b?.name ?? "TBC";
   const isLive = match.matchStatus === "live";
   const isCompleted = match.matchStatus === "completed";
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const supabase = getSupabaseBrowserClient();
+  const isSuperadmin = userRole === "superadmin";
+  const hasBeenScored =
+    match.status ||
+    (match.score_a ?? 0) > 0 || (match.score_b ?? 0) > 0 ||
+    (match.wickets_a ?? 0) > 0 || (match.wickets_b ?? 0) > 0;
+
+  async function handleReset() {
+    setResetting(true);
+    // Wipe events for this match, then zero the match row + clear any lock.
+    await supabase.from("match_events").delete().eq("match_id", match.id);
+    await supabase
+      .from("matches")
+      .update({
+        score_a: 0,
+        score_b: 0,
+        wickets_a: 0,
+        wickets_b: 0,
+        status: false,
+        locked_by: null,
+        locked_by_name: null,
+        locked_at: null,
+      })
+      .eq("id", match.id);
+    setResetting(false);
+    setConfirmReset(false);
+    onRefetch();
+  }
   const isUpcoming = match.matchStatus === "upcoming";
 
   // Can this user score this match?
@@ -534,6 +570,35 @@ function MatchCard({
               >
                 Edit
               </Link>
+            )}
+
+            {/* Superadmin per-match reset */}
+            {isSuperadmin && hasBeenScored && (
+              confirmReset ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleReset}
+                    disabled={resetting}
+                    className="rounded-lg bg-destructive px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-60"
+                  >
+                    {resetting ? "Wiping..." : "Confirm"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmReset(false)}
+                    disabled={resetting}
+                    className="rounded-lg bg-gray-100 px-2 py-1.5 text-[10px] font-bold text-muted-foreground"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmReset(true)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-destructive/40 bg-background px-3 py-1.5 text-[11px] font-bold text-destructive transition-opacity active:opacity-80"
+                >
+                  Reset
+                </button>
+              )
             )}
           </div>
         </div>
