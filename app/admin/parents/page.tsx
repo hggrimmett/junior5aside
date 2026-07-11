@@ -227,6 +227,7 @@ export default function AdminParentsPage() {
                 <RoleAndDelete
                   profileId={p.id}
                   currentRole="parent"
+                  currentEmail={p.email}
                   displayName={p.full_name}
                   cascadeWarning={p.child_count > 0
                     ? `Also deletes ${p.child_count} kid${p.child_count === 1 ? "" : "s"} from players.`

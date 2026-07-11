@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -16,21 +17,49 @@ type AssignableRole = (typeof ROLES)[number];
 export default function RoleAndDelete({
   profileId,
   currentRole,
+  currentEmail,
   displayName,
   cascadeWarning,
   onChanged,
 }: {
   profileId: string;
   currentRole: AssignableRole;
+  currentEmail?: string | null;
   displayName: string;
   cascadeWarning: string | null;
   onChanged: () => void;
 }) {
   const [pendingRole, setPendingRole] = useState<AssignableRole>(currentRole);
   const [savingRole, setSavingRole] = useState(false);
+  const [emailInput, setEmailInput] = useState<string>(currentEmail ?? "");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function saveEmail() {
+    const cleaned = emailInput.trim();
+    if (!cleaned || cleaned === (currentEmail ?? "")) {
+      setEmailMsg(null);
+      return;
+    }
+    setSavingEmail(true);
+    setEmailMsg(null);
+    const res = await fetch("/api/admin/update-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId, newEmail: cleaned }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    setSavingEmail(false);
+    if (!res.ok) {
+      setEmailMsg(json.error ?? "Email update failed");
+      return;
+    }
+    setEmailMsg("Email updated");
+    onChanged();
+  }
 
   async function saveRole(newRole: AssignableRole) {
     if (newRole === currentRole) return;
@@ -71,8 +100,41 @@ export default function RoleAndDelete({
 
   return (
     <div className="border-t pt-3 space-y-2">
+      {/* Email */}
       <div className="flex items-center gap-2">
-        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground shrink-0">
+        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground shrink-0 w-10">
+          Email
+        </label>
+        <Input
+          type="email"
+          value={emailInput}
+          onChange={(e) => setEmailInput(e.target.value)}
+          disabled={savingEmail || savingRole || deleting}
+          className="h-9 flex-1 rounded-lg text-xs"
+        />
+        <Button
+          type="button"
+          onClick={saveEmail}
+          disabled={
+            savingEmail ||
+            savingRole ||
+            deleting ||
+            !emailInput.trim() ||
+            emailInput.trim() === (currentEmail ?? "")
+          }
+          className="h-9 shrink-0 rounded-lg px-3 text-[11px] font-bold"
+        >
+          {savingEmail ? "..." : "Save"}
+        </Button>
+      </div>
+      {emailMsg && (
+        <p className={`text-[11px] ${emailMsg === "Email updated" ? "text-emerald-700" : "text-destructive"}`}>
+          {emailMsg}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground shrink-0 w-10">
           Role
         </label>
         <Select

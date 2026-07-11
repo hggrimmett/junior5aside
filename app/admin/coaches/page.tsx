@@ -197,6 +197,7 @@ export default function AdminCoachesPage() {
                 <RoleAndDelete
                   profileId={c.id}
                   currentRole="coach"
+                  currentEmail={c.email}
                   displayName={c.full_name}
                   cascadeWarning={null}
                   onChanged={load}

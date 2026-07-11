@@ -208,6 +208,7 @@ export default function AdminMentorsPage() {
                 <RoleAndDelete
                   profileId={m.id}
                   currentRole="mentor"
+                  currentEmail={m.email}
                   displayName={m.full_name}
                   cascadeWarning={m.team_count > 0
                     ? `Deleting will unlink ${m.team_count} team${m.team_count === 1 ? "" : "s"} from a mentor.`
