@@ -686,8 +686,8 @@ export default function FinalsManager() {
                     </div>
                   )}
 
-                  {/* Trophy tracker */}
-                  {g.finalCreated && (
+                  {/* Trophy tracker — needs real standings to know winners */}
+                  {g.finalCreated && g.standings.length >= 2 && (
                     <>
                       <Separator />
                       <div className="space-y-1">
