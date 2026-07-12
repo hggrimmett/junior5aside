@@ -202,10 +202,16 @@ export default function StandingsPage() {
               }
             }
 
-            // Top wicket takers: count is_wicket = true per bowler
+            // Top wicket takers: only bowled and caught count towards the
+            // bowler's tally. Run-outs are a fielding effort and don't
+            // credit the bowler.
             const wicketMap: Record<string, number> = {};
             for (const ev of events) {
-              if (ev.is_wicket && ev.bowler_id) {
+              if (
+                ev.is_wicket &&
+                ev.bowler_id &&
+                (ev.extra_type === "bowled" || ev.extra_type === "caught")
+              ) {
                 wicketMap[ev.bowler_id] = (wicketMap[ev.bowler_id] ?? 0) + 1;
               }
             }
