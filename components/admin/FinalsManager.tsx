@@ -121,13 +121,34 @@ export default function FinalsManager() {
     Blue: { final: null, plate: null },
   });
 
-  // Persist toggle changes to the tournament row.
+  // Persist toggle changes to the tournament row. If a toggle is turned OFF,
+  // also delete the corresponding placeholder final row so the fixture list
+  // reflects the new intent.
   async function persistToggle(
     tournamentId: string,
     field: "schedule_grand_final" | "schedule_plate_final",
     value: boolean,
   ) {
     await supabase.from("tournaments").update({ [field]: value }).eq("id", tournamentId);
+    if (!value) {
+      const matchTypeToDelete = field === "schedule_grand_final" ? "final" : "plate_final";
+      await supabase
+        .from("matches")
+        .delete()
+        .eq("tournament_id", tournamentId)
+        .eq("match_type", matchTypeToDelete)
+        .eq("status", false);
+      // Also drop grand final's placeholder if grand toggle is being turned off
+      if (field === "schedule_grand_final") {
+        await supabase
+          .from("matches")
+          .delete()
+          .eq("tournament_id", tournamentId)
+          .eq("match_type", "plate_final")
+          .eq("status", false);
+      }
+      fetchAll();
+    }
   }
 
   // ── Fetch data ───────────────────────────────────────────
@@ -492,8 +513,9 @@ export default function FinalsManager() {
                     />
                   )}
 
-                  {/* Toggles */}
-                  {!g.finalCreated && (
+                  {/* Toggles — always visible so plate/grand can be toggled
+                      off even after placeholder finals have been generated */}
+                  {g.tournament && (
                     <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
                       <label className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
