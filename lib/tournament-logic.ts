@@ -75,12 +75,16 @@ export async function getLeagueTable(
     a.totalRuns += match.score_a;
     b.totalRuns += match.score_b;
 
-    if (match.score_a > match.score_b) {
+    // Winner is decided by NET score (100 + runs − 6 × wickets), not raw runs.
+    const netA = calculateMatchScore(match.score_a, match.wickets_a);
+    const netB = calculateMatchScore(match.score_b, match.wickets_b);
+
+    if (netA > netB) {
       a.won++;
       a.totalPoints += 3;
       b.lost++;
       b.totalPoints += 1;
-    } else if (match.score_b > match.score_a) {
+    } else if (netB > netA) {
       b.won++;
       b.totalPoints += 3;
       a.lost++;
