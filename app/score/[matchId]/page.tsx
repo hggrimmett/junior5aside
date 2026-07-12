@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { calculateMatchScore } from "@/lib/tournament-logic";
@@ -195,6 +195,9 @@ export default function ScorePage() {
   const [playersA, setPlayersA] = useState<Player[]>([]);
   const [playersB, setPlayersB] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
+  // Synchronous mirror of saving. Refs update instantly so a rapid double-tap
+  // is blocked even if React hasn't re-rendered from the previous setSaving yet.
+  const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [lockedByOther, setLockedByOther] = useState<string | null>(null); // name of person who locked it
   const [lockedAt, setLockedAt] = useState<string | null>(null); // when the current lock was last active
@@ -506,6 +509,9 @@ export default function ScorePage() {
       isWicket?: boolean;
       extraType?: ExtraType;
     }) => {
+      // Synchronous re-entry block: refs update in the same tick, so a rapid
+      // double-tap that fires before React re-renders is still stopped here.
+      if (savingRef.current) return;
       if (!match || saving || transition) return;
       if (phase !== "team_a_innings" && phase !== "team_b_innings") return;
 
@@ -516,7 +522,10 @@ export default function ScorePage() {
       const state = deriveInningsState(events, teamId);
       if (state.totalLegalBalls >= 24) return;
 
+      savingRef.current = true;
       setSaving(true);
+
+      try {
 
       // All deliveries count as legal balls (wides/no-balls not rebowled)
       const overNum = Math.min(state.overNumber, 4);
@@ -572,7 +581,10 @@ export default function ScorePage() {
           .eq("id", matchId);
       }
 
-      setSaving(false);
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
     },
     [match, saving, transition, phase, currentBattingTeamId, events, matchId, currentPair1, currentPair2, currentBowlers, supabase]
   );
