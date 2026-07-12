@@ -531,9 +531,15 @@ export default function ScorePage() {
       const overNum = Math.min(state.overNumber, 4);
       const ballNum = state.ballInOver + 1;
 
-      // Determine striker — track strike changes from runs + over ends
+      // Determine striker — track strike changes from runs + over ends,
+      // AND any manual swap-strike taps the umpire has made this session.
+      // Display uses (calculatedStrikerIdx + manualStrikeSwaps); we must
+      // do the same here or batter_id drifts from what the umpire saw.
       const pair = overNum <= 2 ? currentPair1 : currentPair2;
-      const batterId = pair.length > 0 ? pair[getStrikerIndex(events, teamId, pair) % pair.length] : null;
+      const batterId =
+        pair.length > 0
+          ? pair[(getStrikerIndex(events, teamId, pair) + manualStrikeSwaps) % pair.length]
+          : null;
       const bowlerId =
         currentBowlers.length >= overNum ? currentBowlers[overNum - 1] : null;
 
@@ -586,7 +592,7 @@ export default function ScorePage() {
         setSaving(false);
       }
     },
-    [match, saving, transition, phase, currentBattingTeamId, events, matchId, currentPair1, currentPair2, currentBowlers, supabase]
+    [match, saving, transition, phase, currentBattingTeamId, events, matchId, currentPair1, currentPair2, currentBowlers, manualStrikeSwaps, supabase]
   );
 
   // ── Undo ───────────────────────────────────────────────────────────────────
