@@ -882,25 +882,27 @@ export default function ScorePage() {
     battingRoster: Player[],
     fieldingRoster: Player[],
     pair1: string[],
-    setPair1Fn: (ids: string[]) => void,
+    setPair1Fn: React.Dispatch<React.SetStateAction<string[]>>,
     bowlers: string[],
-    setBowlersFn: (ids: string[]) => void,
+    setBowlersFn: React.Dispatch<React.SetStateAction<string[]>>,
     onStart: () => void
   ) {
+    // Functional setters + de-dup so a rapid double-tap can't add the same
+    // player twice (which used to happen if React hadn't re-rendered yet).
     const togglePair1 = (id: string) => {
-      if (pair1.includes(id)) {
-        setPair1Fn(pair1.filter((p) => p !== id));
-      } else if (pair1.length < 2) {
-        setPair1Fn([...pair1, id]);
-      }
+      setPair1Fn((prev) => {
+        if (prev.includes(id)) return prev.filter((p) => p !== id);
+        if (prev.length >= 2) return prev;
+        return [...prev, id];
+      });
     };
 
     const toggleBowler = (id: string) => {
-      if (bowlers.includes(id)) {
-        setBowlersFn(bowlers.filter((b) => b !== id));
-      } else if (bowlers.length < 1) {
-        setBowlersFn([...bowlers, id]);
-      }
+      setBowlersFn((prev) => {
+        if (prev.includes(id)) return prev.filter((b) => b !== id);
+        if (prev.length >= 1) return prev;
+        return [...prev, id];
+      });
     };
 
     const canStart = pair1.length === 2 && bowlers.length === 1;
@@ -1122,7 +1124,9 @@ export default function ScorePage() {
       ? scoringBowlers[scoringOver - 1]
       : null;
 
-  const pairPlayers = scoringCurrentPair
+  // Dedup pair ids as a display safety net — historical data may have the
+  // same player id twice from the setup-tap race bug that we've since fixed.
+  const pairPlayers = Array.from(new Set(scoringCurrentPair))
     .map((id) => scoringBattingRoster.find((p) => p.id === id))
     .filter(Boolean) as Player[];
   const bowlerPlayer = scoringCurrentBowler
@@ -1259,11 +1263,11 @@ export default function ScorePage() {
       const pair1Ids = isBattingA ? aPair1 : bPair1;
 
       const togglePair2 = (id: string) => {
-        if (currentPair2Sel.includes(id)) {
-          setPair2Fn(currentPair2Sel.filter((p) => p !== id));
-        } else if (currentPair2Sel.length < 2) {
-          setPair2Fn([...currentPair2Sel, id]);
-        }
+        setPair2Fn((prev) => {
+          if (prev.includes(id)) return prev.filter((p) => p !== id);
+          if (prev.length >= 2) return prev;
+          return [...prev, id];
+        });
       };
 
       return (
@@ -1428,17 +1432,23 @@ export default function ScorePage() {
           <p className="text-cricket-foreground/70 text-[10px] font-bold uppercase tracking-widest">
             {scoringTeamName} · Over {scoringOver}/4 · {bowlerPlayer ? `${bowlerPlayer.first_name} bowling` : ""}
           </p>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-cricket-foreground text-lg font-black">
-              🏏 {strikerPlayer?.first_name ?? "?"} <span className="text-sm">{batterRuns(strikerPlayer?.id)}*</span>
-              <span className="text-cricket-foreground/50 text-sm font-semibold ml-2">{nonStrikerPlayer?.first_name ?? ""} {batterRuns(nonStrikerPlayer?.id)}</span>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <p className="text-cricket-foreground text-xl font-black leading-tight">
+              🏏 {strikerPlayer?.first_name ?? "?"}
+              {strikerPlayer?.last_name ? ` ${strikerPlayer.last_name.charAt(0)}` : ""}
+              <span className="text-base ml-1">{batterRuns(strikerPlayer?.id)}*</span>
             </p>
             <button
               onClick={() => setManualStrikeSwaps((s) => s + 1)}
-              className="h-7 px-2.5 rounded-lg bg-white/20 text-xs font-bold text-white active:bg-white/30"
+              className="h-8 px-3 rounded-lg bg-white/25 text-sm font-bold text-white active:bg-white/40"
             >
               ⇄
             </button>
+            <p className="text-cricket-foreground/85 text-base font-bold leading-tight">
+              {nonStrikerPlayer?.first_name ?? "?"}
+              {nonStrikerPlayer?.last_name ? ` ${nonStrikerPlayer.last_name.charAt(0)}` : ""}
+              <span className="text-sm ml-1">{batterRuns(nonStrikerPlayer?.id)}</span>
+            </p>
           </div>
           <div className="flex items-baseline gap-3">
             <span className="text-4xl font-black tracking-tight text-cricket-foreground">
