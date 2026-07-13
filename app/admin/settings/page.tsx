@@ -69,6 +69,7 @@ export default function AdminSettingsPage() {
   const [closeConfirm, setCloseConfirm] = useState(false);
 
   const [downloading, setDownloading] = useState(false);
+  const [downloadingEvents, setDownloadingEvents] = useState(false);
 
   const [scheduleStart, setScheduleStart] = useState<string>("");
   const [scheduleLunch, setScheduleLunch] = useState<string>("");
@@ -323,6 +324,117 @@ export default function AdminSettingsPage() {
     downloadCsv(`junior5aside-backup-${stamp}.csv`, rows);
     setDownloading(false);
     showToast(`Downloaded ${rows.length - 1} rows.`);
+  }
+
+  // ── Match events CSV (ball-by-ball analysis) ─────────────
+
+  async function handleDownloadEvents() {
+    setDownloadingEvents(true);
+    setError(null);
+
+    // Fetch all match_events + supporting lookup data. Superadmin RLS
+    // grants full read on everything we need.
+    const [eventsRes, matchesRes, tournamentsRes, teamsRes, playersRes] = await Promise.all([
+      supabase
+        .from("match_events")
+        .select("id, match_id, team_id, over_number, ball_number, runs, is_wicket, extra_type, batter_id, bowler_id, created_at")
+        .order("created_at", { ascending: true }),
+      supabase.from("matches").select("id, tournament_id, team_a_id, team_b_id, match_type, scheduled_time, status, score_a, score_b, wickets_a, wickets_b"),
+      supabase.from("tournaments").select("id, name, colour"),
+      supabase.from("teams").select("id, name, tournament_id"),
+      supabase.from("players").select("id, first_name, last_name"),
+    ]);
+
+    if (eventsRes.error) {
+      setError(`Events fetch failed: ${eventsRes.error.message}`);
+      setDownloadingEvents(false);
+      return;
+    }
+
+    type MatchRow = {
+      id: string; tournament_id: string; team_a_id: string | null; team_b_id: string | null;
+      match_type: string | null; scheduled_time: string | null; status: boolean;
+      score_a: number | null; score_b: number | null; wickets_a: number | null; wickets_b: number | null;
+    };
+    type TourRow = { id: string; name: string; colour: string };
+    type TeamRow = { id: string; name: string; tournament_id: string };
+    type PlayerRow = { id: string; first_name: string; last_name: string };
+    type EventRow = {
+      id: string; match_id: string; team_id: string;
+      over_number: number | null; ball_number: number | null;
+      runs: number | null; is_wicket: boolean | null; extra_type: string | null;
+      batter_id: string | null; bowler_id: string | null; created_at: string | null;
+    };
+
+    const matches = new Map<string, MatchRow>((matchesRes.data ?? []).map((m) => [m.id, m as MatchRow]));
+    const tournaments = new Map<string, TourRow>((tournamentsRes.data ?? []).map((t) => [t.id, t as TourRow]));
+    const teams = new Map<string, TeamRow>((teamsRes.data ?? []).map((t) => [t.id, t as TeamRow]));
+    const players = new Map<string, string>();
+    for (const p of (playersRes.data ?? []) as PlayerRow[]) {
+      players.set(p.id, `${p.first_name} ${p.last_name}`.trim());
+    }
+
+    const rows: string[][] = [[
+      "Event created",
+      "Tournament colour",
+      "Tournament name",
+      "Match ID",
+      "Match type",
+      "Match scheduled",
+      "Match status",
+      "Team A", "Team A score", "Team A wickets",
+      "Team B", "Team B score", "Team B wickets",
+      "Batting team",
+      "Bowling team",
+      "Over",
+      "Ball",
+      "Runs",
+      "Is wicket",
+      "Extra type",
+      "Batter ID",
+      "Batter name",
+      "Bowler ID",
+      "Bowler name",
+      "Event ID",
+    ]];
+
+    const evs = (eventsRes.data ?? []) as EventRow[];
+    for (const e of evs) {
+      const m = matches.get(e.match_id);
+      const tourn = m ? tournaments.get(m.tournament_id) : undefined;
+      const teamA = m?.team_a_id ? teams.get(m.team_a_id) : undefined;
+      const teamB = m?.team_b_id ? teams.get(m.team_b_id) : undefined;
+      const battingTeam = e.team_id === m?.team_a_id ? teamA : teamB;
+      const bowlingTeam = e.team_id === m?.team_a_id ? teamB : teamA;
+      rows.push([
+        e.created_at ?? "",
+        tourn?.colour ?? "",
+        tourn?.name ?? "",
+        e.match_id,
+        m?.match_type ?? "",
+        m?.scheduled_time ?? "",
+        m?.status ? "played" : "unplayed",
+        teamA?.name ?? "", String(m?.score_a ?? ""), String(m?.wickets_a ?? ""),
+        teamB?.name ?? "", String(m?.score_b ?? ""), String(m?.wickets_b ?? ""),
+        battingTeam?.name ?? "",
+        bowlingTeam?.name ?? "",
+        String(e.over_number ?? ""),
+        String(e.ball_number ?? ""),
+        String(e.runs ?? 0),
+        e.is_wicket ? "yes" : "",
+        e.extra_type ?? "",
+        e.batter_id ?? "",
+        e.batter_id ? (players.get(e.batter_id) ?? "[unknown player]") : "",
+        e.bowler_id ?? "",
+        e.bowler_id ? (players.get(e.bowler_id) ?? "[unknown player]") : "",
+        e.id,
+      ]);
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`match-events-${stamp}.csv`, rows);
+    setDownloadingEvents(false);
+    showToast(`Downloaded ${rows.length - 1} ball events.`);
   }
 
   // ── Publish toggle ───────────────────────────────────────
@@ -828,6 +940,23 @@ export default function AdminSettingsPage() {
             >
               {downloading ? <><Spinner />Preparing...</> : "Download full backup CSV"}
             </Button>
+
+            <div className="border-t pt-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Ball-by-ball audit CSV — every match_event with the joined
+                tournament, match, batting/bowling teams, batter and bowler
+                names. One row per ball, sortable in Excel to verify batter
+                attribution, top scorers, top wicket takers.
+              </p>
+              <Button
+                variant="outline"
+                onClick={handleDownloadEvents}
+                disabled={downloadingEvents}
+                className="mt-2 h-12 w-full rounded-xl font-bold gap-2"
+              >
+                {downloadingEvents ? <><Spinner />Preparing...</> : "Download match events CSV (ball-by-ball)"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
